@@ -1,0 +1,148 @@
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import { Redirect, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { BrandMark, Button, Notice } from '@/components/ui';
+import { API_BASE_URL } from '@/lib/api';
+import { useSession } from '@/providers/SessionProvider';
+import { colors, font, radius, shadow, spacing } from '@/theme';
+
+const identities = [
+  { id: 'alice', name: 'Alice Rivera', role: 'Workspace owner', detail: 'Can upload, edit, export, and inspect costs.', initials: 'AR' },
+  { id: 'bob', name: 'Bob Chen', role: 'Research analyst', detail: 'A second principal for testing workspace isolation.', initials: 'BC' },
+];
+
+export default function LoginScreen() {
+  const { session, loading, error: sessionError, login } = useSession();
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [selected, setSelected] = useState(identities[0]?.id ?? 'alice');
+  const [error, setError] = useState<Error>();
+
+  if (session) return <Redirect href="/" />;
+
+  const submit = async () => {
+    setError(undefined);
+    try {
+      await login(selected);
+      router.replace('/');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught : new Error('Demo login failed'));
+    }
+  };
+
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[styles.root, { paddingTop: Math.max(insets.top, 24), paddingBottom: Math.max(insets.bottom, 24) }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={[styles.layout, width < 800 && styles.layoutNarrow]}>
+        <View style={styles.story}>
+          <BrandMark />
+          <View style={styles.storyCopy}>
+            <Text style={styles.kicker}>CANONICAL EVIDENCE · SELECTIVE AI · VISIBLE COST</Text>
+            <Text accessibilityRole="header" style={[styles.hero, width < 540 && styles.heroSmall]}>
+              Turn every recording into evidence you can trust.
+            </Text>
+            <Text style={styles.heroBody}>
+              Upload audio once. Trace every summary, decision, and task back to the exact moment it came from—while seeing what each stage costs.
+            </Text>
+          </View>
+          <View style={styles.promiseRow}>
+            {[
+              ['transcribe', 'Complete timelines'],
+              ['text-box-search-outline', 'Cited intelligence'],
+              ['chart-timeline-variant-shimmer', 'Auditable spend'],
+            ].map(([icon, label]) => (
+              <View key={label} style={styles.promise}>
+                <MaterialCommunityIcons name={icon as 'transcribe'} size={19} color={colors.pine} />
+                <Text style={styles.promiseText}>{label}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.loginCard}>
+          <View style={styles.cardTitleArea}>
+            <Text style={styles.cardKicker}>DEMO ACCESS</Text>
+            <Text style={styles.cardTitle}>Choose a demo identity</Text>
+            <Text style={styles.cardBody}>Sessions and workspace access are still enforced by the API.</Text>
+          </View>
+          {(error ?? sessionError) ? (
+            <Notice tone="error" title="Could not sign in">{(error ?? sessionError)?.message}</Notice>
+          ) : null}
+          <View style={styles.identityList} accessibilityRole="radiogroup">
+            {identities.map((identity) => {
+              const active = identity.id === selected;
+              return (
+                <Pressable
+                  key={identity.id}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: active }}
+                  onPress={() => setSelected(identity.id)}
+                  style={({ pressed }) => [styles.identity, active && styles.identityActive, pressed && styles.pressed]}
+                >
+                  <View style={[styles.identityAvatar, active && styles.identityAvatarActive]}>
+                    <Text style={[styles.identityInitials, active && styles.identityInitialsActive]}>{identity.initials}</Text>
+                  </View>
+                  <View style={styles.identityCopy}>
+                    <Text style={styles.identityName}>{identity.name}</Text>
+                    <Text style={styles.identityRole}>{identity.role}</Text>
+                    <Text style={styles.identityDetail}>{identity.detail}</Text>
+                  </View>
+                  <MaterialCommunityIcons name={active ? 'radiobox-marked' : 'radiobox-blank'} size={20} color={active ? colors.coral : colors.borderStrong} />
+                </Pressable>
+              );
+            })}
+          </View>
+          <Button size="lg" loading={loading} onPress={submit} icon="arrow-right">Enter evidence lab</Button>
+          <Text style={styles.endpoint}>Connecting to {API_BASE_URL}</Text>
+          <View style={styles.disclosure}>
+            <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.green} />
+            <Text style={styles.disclosureText}>Use synthetic or approved audio until provider terms are configured and accepted.</Text>
+          </View>
+        </View>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: colors.canvas },
+  root: { flex: 1, backgroundColor: colors.canvas, justifyContent: 'center', paddingHorizontal: spacing.xl },
+  layout: { width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 80 },
+  layoutNarrow: { flexDirection: 'column', gap: spacing.xxxl, paddingVertical: spacing.xxxl },
+  story: { flex: 1, gap: 58 },
+  storyCopy: { gap: spacing.lg },
+  kicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 10, letterSpacing: 1.5 },
+  hero: { maxWidth: 640, color: colors.ink, fontFamily: font.medium, fontSize: 52, lineHeight: 57, letterSpacing: -2.2 },
+  heroSmall: { fontSize: 38, lineHeight: 44 },
+  heroBody: { maxWidth: 570, color: colors.inkMuted, fontSize: 17, lineHeight: 27 },
+  promiseRow: { flexDirection: 'row', gap: spacing.xl, flexWrap: 'wrap' },
+  promise: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  promiseText: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 12 },
+  loginCard: { width: '100%', maxWidth: 470, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.xl, ...shadow },
+  cardTitleArea: { gap: spacing.sm },
+  cardKicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 10, letterSpacing: 1.4 },
+  cardTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 26, letterSpacing: -0.7 },
+  cardBody: { color: colors.inkMuted, fontSize: 13, lineHeight: 19 },
+  identityList: { gap: spacing.sm },
+  identity: { minHeight: 92, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  identityActive: { borderColor: colors.pine, backgroundColor: colors.pineSoft },
+  identityAvatar: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
+  identityAvatarActive: { backgroundColor: colors.pine },
+  identityInitials: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 12 },
+  identityInitialsActive: { color: colors.white },
+  identityCopy: { flex: 1, gap: 2 },
+  identityName: { color: colors.ink, fontFamily: font.medium, fontSize: 14 },
+  identityRole: { color: colors.coralDark, fontSize: 11 },
+  identityDetail: { color: colors.inkMuted, fontSize: 10, lineHeight: 14, marginTop: 2 },
+  endpoint: { color: colors.inkFaint, fontFamily: font.mono, fontSize: 9, textAlign: 'center' },
+  disclosure: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  disclosureText: { flex: 1, color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
+  pressed: { opacity: 0.72 },
+});

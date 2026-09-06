@@ -1,0 +1,224 @@
+name: pocket-demo
+
+x-backend-environment: &backend-environment
+  APP_ENV: ${APP_ENV:-development}
+  DEMO_MODE: ${DEMO_MODE:-true}
+  PROVIDER_MODE: ${PROVIDER_MODE:-fixture}
+  ALLOW_REMOTE_PROVIDER_CALLS: ${ALLOW_REMOTE_PROVIDER_CALLS:-false}
+  DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql+psycopg://pocket:pocket-local-only@postgres:5432/pocket}
+  BLOB_STORE_BACKEND: s3
+  BLOB_ROOT: /data/blobs
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_BUCKET: ${S3_BUCKET:-pocket-demo}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-pocket-local}
+  S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-pocket-local-only}
+  S3_KEY_PREFIX: ${S3_KEY_PREFIX:-pocket-demo}
+  FIXTURE_ROOT: /fixtures
+  INLINE_WORKER: "false"
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}
+  SESSION_SECRET: ${SESSION_SECRET:-local-demo-session-secret-change-before-sharing}
+  CSRF_SECRET: ${CSRF_SECRET:-local-demo-csrf-secret-change-before-sharing}
+  TOKEN_SIGNING_SECRET: ${TOKEN_SIGNING_SECRET:-local-demo-capability-secret-change-before-sharing}
+  COOKIE_SECURE: ${COOKIE_SECURE:-false}
+  SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-28800}
+  MEDIA_GRANT_TTL_SECONDS: ${MEDIA_GRANT_TTL_SECONDS:-60}
+  MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-524288000}
+  MAX_AUDIO_DURATION_SECONDS: ${MAX_AUDIO_DURATION_SECONDS:-7200}
+  MAX_AI_SPEND_PER_RECORDING_USD: ${MAX_AI_SPEND_PER_RECORDING_USD:-2.00}
+  MAX_AI_SPEND_PER_ASK_USD: ${MAX_AI_SPEND_PER_ASK_USD:-0.10}
+  MAX_AI_SPEND_PER_WORKSPACE_MONTH_USD: ${MAX_AI_SPEND_PER_WORKSPACE_MONTH_USD:-50.00}
+  WORKSPACE_STORAGE_QUOTA_BYTES: ${WORKSPACE_STORAGE_QUOTA_BYTES:-5368709120}
+  WORKSPACE_RECORDING_QUOTA: ${WORKSPACE_RECORDING_QUOTA:-200}
+  RECORDING_RETENTION_DAYS: ${RECORDING_RETENTION_DAYS:-30}
+  SWEEPER_INTERVAL_SECONDS: ${SWEEPER_INTERVAL_SECONDS:-60}
+  PROVIDER_DATA_POLICY: ${PROVIDER_DATA_POLICY:-synthetic-approved-only}
+  PROVIDER_ALLOWED_LANGUAGES: ${PROVIDER_ALLOWED_LANGUAGES:-en}
+  PROVIDER_REQUIRE_NO_TRAINING: ${PROVIDER_REQUIRE_NO_TRAINING:-true}
+  PROVIDER_REQUIRE_ZERO_RETENTION: ${PROVIDER_REQUIRE_ZERO_RETENTION:-true}
+  ASSEMBLYAI_API_KEY: ${ASSEMBLYAI_API_KEY:-}
+  SPEECH_STANDARD_MODEL: ${SPEECH_STANDARD_MODEL:-}
+  SPEECH_STRONG_MODEL: ${SPEECH_STRONG_MODEL:-}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+  LLM_CHEAP_MODEL: ${LLM_CHEAP_MODEL:-}
+  LLM_STRONG_MODEL: ${LLM_STRONG_MODEL:-}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+  EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+  PROCESSING_CONCURRENCY: ${PROCESSING_CONCURRENCY:-2}
+  WORKER_POLL_INTERVAL_SECONDS: ${WORKER_POLL_INTERVAL_SECONDS:-1}
+  WORKER_LEASE_SECONDS: ${WORKER_LEASE_SECONDS:-90}
+  WORKER_MAX_ATTEMPTS: ${WORKER_MAX_ATTEMPTS:-3}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: ${LOG_FORMAT:-json}
+  LOG_CONTENT_POLICY: metadata-only
+  PRICE_CATALOG_PATH: ${PRICE_CATALOG_PATH:-/dev/null}
+  FAILURE_INJECTION_ENABLED: ${FAILURE_INJECTION_ENABLED:-false}
+  FAILURE_INJECTION_STAGE: ${FAILURE_INJECTION_STAGE:-none}
+  FAILURE_INJECTION_MODE: ${FAILURE_INJECTION_MODE:-none}
+  OTEL_ENABLED: ${OTEL_ENABLED:-false}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  FFMPEG_PATH: /usr/bin/ffmpeg
+  FFPROBE_PATH: /usr/bin/ffprobe
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pocket}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pocket-local-only}
+      POSTGRES_DB: ${POSTGRES_DB:-pocket}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-pgvector.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    networks: [pocket]
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pocket-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pocket-local-only}
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 20s
+    networks: [pocket]
+
+  minio-bootstrap:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pocket-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pocket-local-only}
+      S3_BUCKET: ${S3_BUCKET:-pocket-demo}
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
+        mc mb --ignore-existing "local/$${S3_BUCKET}"
+        mc anonymous set none "local/$${S3_BUCKET}"
+    restart: "no"
+    networks: [pocket]
+
+  migrate:
+    image: pocket-demo-api:local
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    command: ["python3.12", "-m", "alembic", "upgrade", "head"]
+    environment: *backend-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+    networks: [pocket]
+
+  api:
+    image: pocket-demo-api:local
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    environment: *backend-environment
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      minio-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://localhost:8000/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    networks: [pocket]
+
+  worker:
+    image: pocket-demo-api:local
+    command: ["python3.12", "-m", "app.worker", "--poll-seconds", "${WORKER_POLL_INTERVAL_SECONDS:-1}"]
+    environment: *backend-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python3.12 -c "from pathlib import Path; import sys;
+          sys.exit(0 if b'app.worker' in Path('/proc/1/cmdline').read_bytes() else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 45s
+    security_opt:
+      - no-new-privileges:true
+    networks: [pocket]
+
+  web:
+    image: pocket-demo-web:local
+    build:
+      context: .
+      dockerfile: infra/docker/client.Dockerfile
+      args:
+        EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8081}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+    stop_grace_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    networks: [pocket]
+
+networks:
+  pocket:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:

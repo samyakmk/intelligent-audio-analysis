@@ -1,0 +1,5 @@
+Alembic migration environment for the Pocket Demo API.
+
+Revisions are authoritative for persistent databases. Application code imports
+SQLAlchemy metadata only for migration comparison; revisions must contain frozen,
+explicit operations and must never load dotenv files.

@@ -1,0 +1,49 @@
+# Never send credentials or local configuration to a Docker build context.
+.env
+.env.*
+**/.env
+**/.env.*
+.envrc
+**/.envrc
+**/.direnv
+
+# Repository and editor metadata
+.git
+.gitignore
+.github
+.DS_Store
+.idea
+.vscode
+
+# Dependencies, caches, generated native projects, and local data
+**/node_modules
+**/.expo
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/coverage
+apps/client/dist
+apps/client/ios
+apps/client/android
+.local
+.runtime
+data
+*.db
+*.sqlite*
+*.log
+
+# Documentation and evaluation corpora are not runtime image inputs.
+docs
+scripts
+POCKET_DEMO_FINAL_DESIGN_AND_ARCHITECTURE.md
+
+# Fixture mode needs one exact approved functional fixture, not a broad corpus.
+fixtures/*
+!fixtures/manifest.json
+!fixtures/media
+fixtures/media/*
+!fixtures/media/pocket-demo-fixture.wav
+!fixtures/sidecars
+fixtures/sidecars/*
+!fixtures/sidecars/pocket-demo-fixture.json

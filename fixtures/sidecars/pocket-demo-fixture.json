@@ -1,0 +1,231 @@
+{
+  "schema_version": "pocket.canonical-fixture.v1",
+  "fixture_id": "pocket-demo-fixture",
+  "provenance": {
+    "source": "checked-in scripted fixture",
+    "provider_mode": "fixture",
+    "pipeline_version": "fixture-pipeline.v1",
+    "model": "none",
+    "prompt_version": "none",
+    "schema_version": "RecordingIntelligence.v1",
+    "policy_version": "synthetic-functional-only.v1",
+    "notice": "The WAV is a deterministic tone timing carrier. The scripted text is not an ASR result and must be labeled as mock fixture data."
+  },
+  "timeline": [
+    {
+      "id": "timeline-1",
+      "start_ms": 0,
+      "end_ms": 18000,
+      "state": "speech"
+    }
+  ],
+  "segments": [
+    {
+      "id": "segment-1",
+      "start_ms": 0,
+      "end_ms": 4000,
+      "speaker_id": "speaker-a",
+      "language_bcp47": "en-US",
+      "text": "Welcome to the Pocket architecture demo.",
+      "confidence": 1.0
+    },
+    {
+      "id": "segment-2",
+      "start_ms": 4000,
+      "end_ms": 9000,
+      "speaker_id": "speaker-b",
+      "language_bcp47": "en-US",
+      "text": "We decided to ship the browser upload flow on Friday.",
+      "confidence": 1.0
+    },
+    {
+      "id": "segment-3",
+      "start_ms": 9000,
+      "end_ms": 14000,
+      "speaker_id": "speaker-a",
+      "language_bcp47": "en-US",
+      "text": "Jordan will prepare the validation checklist by September tenth.",
+      "confidence": 1.0
+    },
+    {
+      "id": "segment-4",
+      "start_ms": 14000,
+      "end_ms": 18000,
+      "speaker_id": "speaker-b",
+      "language_bcp47": "en-US",
+      "text": "The estimated mock processing cost is twelve cents.",
+      "confidence": 1.0
+    }
+  ],
+  "intelligence": {
+    "title": {
+      "text": "Pocket architecture demo planning",
+      "evidence": [
+        {
+          "segment_id": "segment-1",
+          "start_ms": 0,
+          "end_ms": 4000,
+          "speaker_id": "speaker-a",
+          "quote": "Welcome to the Pocket architecture demo."
+        }
+      ],
+      "confidence": 1.0
+    },
+    "summary": {
+      "short": "The team chose a browser upload flow and assigned its validation checklist.",
+      "detailed": "The team decided to ship a browser upload flow on Friday. Jordan owns the validation checklist, due September tenth.",
+      "evidence": [
+        {
+          "segment_id": "segment-2",
+          "start_ms": 4000,
+          "end_ms": 9000,
+          "speaker_id": "speaker-b",
+          "quote": "We decided to ship the browser upload flow on Friday."
+        },
+        {
+          "segment_id": "segment-3",
+          "start_ms": 9000,
+          "end_ms": 14000,
+          "speaker_id": "speaker-a",
+          "quote": "Jordan will prepare the validation checklist by September tenth."
+        }
+      ]
+    },
+    "facts": [
+      {
+        "claim": "The estimated mock processing cost is twelve cents.",
+        "evidence": [
+          {
+            "segment_id": "segment-4",
+            "start_ms": 14000,
+            "end_ms": 18000,
+            "speaker_id": "speaker-b",
+            "quote": "The estimated mock processing cost is twelve cents."
+          }
+        ],
+        "confidence": 1.0
+      }
+    ],
+    "decisions": [
+      {
+        "decision": "Ship the browser upload flow on Friday.",
+        "status": "decided",
+        "participants": [
+          "speaker-b"
+        ],
+        "evidence": [
+          {
+            "segment_id": "segment-2",
+            "start_ms": 4000,
+            "end_ms": 9000,
+            "speaker_id": "speaker-b",
+            "quote": "We decided to ship the browser upload flow on Friday."
+          }
+        ],
+        "confidence": 1.0
+      }
+    ],
+    "actions": [
+      {
+        "id": "action-1",
+        "task": "Prepare the validation checklist.",
+        "owner_text": "Jordan",
+        "owner_id": null,
+        "due_text": "September tenth",
+        "due_at": null,
+        "timezone": null,
+        "status": "open",
+        "ambiguities": [
+          "Year and timezone were not stated."
+        ],
+        "evidence": [
+          {
+            "segment_id": "segment-3",
+            "start_ms": 9000,
+            "end_ms": 14000,
+            "speaker_id": "speaker-a",
+            "quote": "Jordan will prepare the validation checklist by September tenth."
+          }
+        ],
+        "confidence": 1.0
+      }
+    ],
+    "topics": [
+      {
+        "label": "Browser upload",
+        "parent": null,
+        "intervals": [
+          {
+            "start_ms": 4000,
+            "end_ms": 14000
+          }
+        ],
+        "evidence": [
+          {
+            "segment_id": "segment-2",
+            "start_ms": 4000,
+            "end_ms": 9000,
+            "speaker_id": "speaker-b",
+            "quote": "We decided to ship the browser upload flow on Friday."
+          },
+          {
+            "segment_id": "segment-3",
+            "start_ms": 9000,
+            "end_ms": 14000,
+            "speaker_id": "speaker-a",
+            "quote": "Jordan will prepare the validation checklist by September tenth."
+          }
+        ]
+      }
+    ],
+    "participants": [
+      {
+        "speaker_cluster_id": "speaker-a",
+        "display_name": null,
+        "confidence": 1.0,
+        "evidence": [
+          {
+            "segment_id": "segment-1",
+            "start_ms": 0,
+            "end_ms": 4000,
+            "speaker_id": "speaker-a",
+            "quote": "Welcome to the Pocket architecture demo."
+          },
+          {
+            "segment_id": "segment-3",
+            "start_ms": 9000,
+            "end_ms": 14000,
+            "speaker_id": "speaker-a",
+            "quote": "Jordan will prepare the validation checklist by September tenth."
+          }
+        ]
+      },
+      {
+        "speaker_cluster_id": "speaker-b",
+        "display_name": null,
+        "confidence": 1.0,
+        "evidence": [
+          {
+            "segment_id": "segment-2",
+            "start_ms": 4000,
+            "end_ms": 9000,
+            "speaker_id": "speaker-b",
+            "quote": "We decided to ship the browser upload flow on Friday."
+          },
+          {
+            "segment_id": "segment-4",
+            "start_ms": 14000,
+            "end_ms": 18000,
+            "speaker_id": "speaker-b",
+            "quote": "The estimated mock processing cost is twelve cents."
+          }
+        ]
+      }
+    ],
+    "open_questions": [],
+    "warnings": [
+      "This artifact is deterministic demo fixture data, not model-generated or ASR-produced output."
+    ]
+  }
+}
+

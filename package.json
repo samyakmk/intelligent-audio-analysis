@@ -1,0 +1,20 @@
+{
+  "name": "pocket-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pocket architecture demo orchestration commands",
+  "engines": {
+    "node": ">=22.13.0",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "web": "EXPO_NO_DOTENV=1 npm --prefix apps/client run web",
+    "export:web": "EXPO_NO_DOTENV=1 npm --prefix apps/client run export",
+    "prebuild": "EXPO_NO_DOTENV=1 npm --prefix apps/client run prebuild -- --no-install",
+    "test": "npm run test:client",
+    "test:client": "EXPO_NO_DOTENV=1 npm --prefix apps/client test",
+    "lint": "npm run lint:client && npm run typecheck",
+    "lint:client": "EXPO_NO_DOTENV=1 npm --prefix apps/client run lint",
+    "typecheck": "EXPO_NO_DOTENV=1 npm --prefix apps/client run typecheck"
+  }
+}

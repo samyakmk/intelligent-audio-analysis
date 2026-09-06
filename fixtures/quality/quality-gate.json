@@ -1,0 +1,60 @@
+{
+  "schema_version": "pocket.quality-gate.v1",
+  "gate_id": "demo-route-qualification-v1",
+  "status": "blocked_missing_approved_corpus",
+  "quality_gate_passed": false,
+  "claim_permitted": false,
+  "required_corpus": {
+    "minimum_recordings": 24,
+    "minimum_per_overlapping_cohort": 4,
+    "cohorts": [
+      "clean-single-speaker",
+      "orderly-two-speaker",
+      "noise-or-overlap",
+      "multilingual-or-code-switching",
+      "critical-tokens-or-jargon",
+      "silent-corrupt-or-partial"
+    ],
+    "required_human_labels": [
+      "transcript text and timeline",
+      "speaker turns",
+      "critical tokens",
+      "facts",
+      "decisions",
+      "actions",
+      "owners",
+      "deadlines",
+      "Ask answers and citations"
+    ],
+    "minimum_exact_or_semantic_ask_questions": 20
+  },
+  "thresholds": {
+    "timeline_validity": 1.0,
+    "citation_validity": 1.0,
+    "schema_validity": 1.0,
+    "maximum_critical_token_regressions": 0,
+    "maximum_severe_unsupported_claim_regressions": 0,
+    "maximum_absolute_wer_regression_points": 2.0,
+    "maximum_absolute_der_regression_points": 5.0,
+    "minimum_grounded_item_precision_delta_points": 0.0,
+    "maximum_grounded_item_coverage_regression_points": 5.0,
+    "required_exact_ask_correctness": 1.0,
+    "maximum_semantic_ask_correctness_regression_points": 0.0,
+    "maximum_semantic_ask_citation_regression_points": 0.0
+  },
+  "current_corpus": {
+    "quality_eligible_recordings": 0,
+    "functional_only_recordings": 1,
+    "functional_labeled_ask_questions": 20,
+    "results": null,
+    "comparison_route": null,
+    "optimized_route": null,
+    "evaluated_at": null
+  },
+  "blocking_reasons": [
+    "The checked-in tone carrier is not natural speech and is excluded from ASR/model-quality measurement.",
+    "An approved human-labeled corpus with at least 24 recordings has not been supplied.",
+    "No configured remote route has been evaluated against a strong comparison route."
+  ]
+}
+

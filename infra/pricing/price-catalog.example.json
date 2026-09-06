@@ -1,0 +1,54 @@
+{
+  "schema_version": "pocket.price-catalog.v1",
+  "catalog_version": "unconfigured-example-v1",
+  "currency": "USD",
+  "effective_at": null,
+  "reviewed_at": null,
+  "enabled_for_remote_calls": false,
+  "notice": "No rates are asserted by this placeholder. Replace every null with a dated, contract-specific rate and pass the provider capability smoke tests before enabling remote calls.",
+  "models": {
+    "speech.standard": {
+      "provider": "assemblyai",
+      "resolved_model": null,
+      "unit": "billed_audio_second",
+      "unit_price": null,
+      "billing_minimum_seconds": null,
+      "rounding_seconds": null,
+      "channel_multiplier": null,
+      "optional_feature_prices": {}
+    },
+    "speech.strong": {
+      "provider": "assemblyai",
+      "resolved_model": null,
+      "unit": "billed_audio_second",
+      "unit_price": null,
+      "billing_minimum_seconds": null,
+      "rounding_seconds": null,
+      "channel_multiplier": null,
+      "optional_feature_prices": {}
+    },
+    "llm.cheap": {
+      "provider": "openai",
+      "resolved_model": null,
+      "input_token_price": null,
+      "cached_input_token_price": null,
+      "output_token_price": null,
+      "price_per_tokens": 1000000
+    },
+    "llm.strong": {
+      "provider": "openai",
+      "resolved_model": null,
+      "input_token_price": null,
+      "cached_input_token_price": null,
+      "output_token_price": null,
+      "price_per_tokens": 1000000
+    },
+    "embed.multilingual": {
+      "provider": "openai",
+      "resolved_model": "text-embedding-3-small",
+      "input_token_price": null,
+      "price_per_tokens": 1000000,
+      "dimensions": 1536
+    }
+  }
+}

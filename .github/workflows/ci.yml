@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pocket-demo-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPO_NO_DOTENV: "1"
+  PROVIDER_MODE: fixture
+  ALLOW_REMOTE_PROVIDER_CALLS: "false"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  contracts:
+    name: Configuration and fixture contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify deterministic fixture bytes and labels
+        run: |
+          python3.12 scripts/generate_fixture_wav.py --check --print-sha256
+          python3.12 scripts/verify_fixture_corpus.py
+      - name: Verify placeholder-only environment inventory
+        run: python3.12 scripts/verify_env_example.py
+      - name: Validate checked-in JSON
+        run: |
+          python3.12 -m json.tool fixtures/manifest.json >/dev/null
+          python3.12 -m json.tool fixtures/sidecars/pocket-demo-fixture.json >/dev/null
+          python3.12 -m json.tool fixtures/quality/ask-questions.json >/dev/null
+          python3.12 -m json.tool fixtures/quality/quality-gate.json >/dev/null
+          python3.12 -m json.tool infra/pricing/price-catalog.example.json >/dev/null
+      - name: Validate production-shaped Compose graph without dotenv
+        run: python3.12 scripts/compose.py config --quiet
+
+  backend:
+    name: Backend tests and lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: services/api/requirements.txt
+      - name: Install locked backend dependencies
+        run: python3.12 -m pip install --requirement services/api/requirements.txt
+      - name: Run backend tests
+        working-directory: services/api
+        env:
+          FIXTURE_ROOT: ${{ github.workspace }}/fixtures
+        run: python3.12 -m pytest
+      - name: Run backend lint
+        working-directory: services/api
+        run: python3.12 -m ruff check app tests alembic
+
+  client:
+    name: Universal client checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/client/package-lock.json
+      - name: Install locked client dependencies
+        run: npm --prefix apps/client ci
+      - name: Lint
+        run: npm --prefix apps/client run lint
+      - name: Type-check
+        run: npm --prefix apps/client run typecheck
+      - name: Run client tests
+        run: npm --prefix apps/client test
+      - name: Export browser application
+        env:
+          EXPO_PUBLIC_API_URL: http://localhost:8000
+        run: npm --prefix apps/client run export
+      - name: Generate native iOS and Android projects
+        env:
+          EXPO_PUBLIC_API_URL: http://localhost:8000
+        run: npm --prefix apps/client run prebuild -- --no-install
+      - name: Bundle shared source for native targets
+        working-directory: apps/client
+        run: |
+          npx expo export --platform ios --output-dir /tmp/pocket-demo-ios-export
+          npx expo export --platform android --output-dir /tmp/pocket-demo-android-export
+      - name: Verify all platform outputs
+        run: |
+          test -f apps/client/dist/index.html
+          test -f apps/client/ios/Podfile
+          test -f apps/client/android/settings.gradle
+          test -f /tmp/pocket-demo-ios-export/metadata.json
+          test -f /tmp/pocket-demo-android-export/metadata.json
+
+  container-images:
+    name: Container image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [contracts, backend, client]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API/worker and static web images without dotenv
+        run: python3.12 scripts/compose.py build api web
+      - name: Assert media binaries are installed in the API image
+        run: |
+          docker run --rm pocket-demo-api:local ffmpeg -version
+          docker run --rm pocket-demo-api:local ffprobe -version

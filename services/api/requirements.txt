@@ -1,0 +1,11 @@
+fastapi==0.141.1
+pydantic==2.12.5
+sqlalchemy==2.0.43
+alembic==1.16.5
+uvicorn[standard]==0.35.0
+boto3==1.40.31
+psycopg[binary]==3.2.10
+httpx==0.28.1
+pytest==8.4.2
+pytest-cov==7.0.0
+ruff==0.12.12

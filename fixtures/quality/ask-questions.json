@@ -1,0 +1,174 @@
+{
+  "schema_version": "pocket.ask-evaluation.v1",
+  "fixture_id": "pocket-demo-fixture",
+  "label_status": "approved-for-functional-fixture-tests-only",
+  "quality_gate_eligible": false,
+  "notice": "These labels verify deterministic retrieval, citation, structured-query, and abstention behavior. They do not measure model quality.",
+  "questions": [
+    {
+      "id": "ask-exact-001",
+      "kind": "exact",
+      "question": "What upload flow did the team decide to ship?",
+      "expected_answer_contains": ["browser upload flow"],
+      "expected_segment_ids": ["segment-2"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-exact-002",
+      "kind": "exact",
+      "question": "When will the browser upload flow ship?",
+      "expected_answer_contains": ["Friday"],
+      "expected_segment_ids": ["segment-2"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-exact-003",
+      "kind": "exact",
+      "question": "Who owns the validation checklist?",
+      "expected_answer_contains": ["Jordan"],
+      "expected_segment_ids": ["segment-3"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-exact-004",
+      "kind": "exact",
+      "question": "What is Jordan expected to prepare?",
+      "expected_answer_contains": ["validation checklist"],
+      "expected_segment_ids": ["segment-3"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-exact-005",
+      "kind": "exact",
+      "question": "When is the validation checklist due?",
+      "expected_answer_contains": ["September tenth"],
+      "expected_segment_ids": ["segment-3"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-exact-006",
+      "kind": "exact",
+      "question": "What was the estimated mock processing cost?",
+      "expected_answer_contains": ["twelve cents"],
+      "expected_segment_ids": ["segment-4"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-exact-007",
+      "kind": "exact",
+      "question": "How many open action items are present?",
+      "expected_answer_contains": ["one"],
+      "expected_segment_ids": ["segment-3"],
+      "should_abstain": false,
+      "answer_source": "structured-sql"
+    },
+    {
+      "id": "ask-exact-008",
+      "kind": "exact",
+      "question": "How many decisions are recorded?",
+      "expected_answer_contains": ["one"],
+      "expected_segment_ids": ["segment-2"],
+      "should_abstain": false,
+      "answer_source": "structured-sql"
+    },
+    {
+      "id": "ask-exact-009",
+      "kind": "exact",
+      "question": "What is the action item's status?",
+      "expected_answer_contains": ["open"],
+      "expected_segment_ids": ["segment-3"],
+      "should_abstain": false,
+      "answer_source": "structured-sql"
+    },
+    {
+      "id": "ask-exact-010",
+      "kind": "exact",
+      "question": "How many anonymous speaker clusters are in the transcript?",
+      "expected_answer_contains": ["two"],
+      "expected_segment_ids": ["segment-1", "segment-2"],
+      "should_abstain": false,
+      "answer_source": "structured-sql"
+    },
+    {
+      "id": "ask-semantic-001",
+      "kind": "semantic",
+      "question": "Summarize the key decision.",
+      "expected_answer_contains": ["browser upload flow", "Friday"],
+      "expected_segment_ids": ["segment-2"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-002",
+      "kind": "semantic",
+      "question": "What is the next step and who is responsible?",
+      "expected_answer_contains": ["validation checklist", "Jordan"],
+      "expected_segment_ids": ["segment-3"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-003",
+      "kind": "semantic",
+      "question": "What timing details remain unresolved for Jordan's task?",
+      "expected_answer_contains": ["year", "timezone"],
+      "expected_segment_ids": ["segment-3"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-004",
+      "kind": "semantic",
+      "question": "What was this conversation mainly about?",
+      "expected_answer_contains": ["Pocket", "browser upload"],
+      "expected_segment_ids": ["segment-1", "segment-2"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-005",
+      "kind": "semantic",
+      "question": "Give a brief project recap.",
+      "expected_answer_contains": ["browser upload flow", "validation checklist"],
+      "expected_segment_ids": ["segment-2", "segment-3"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-006",
+      "kind": "semantic",
+      "question": "Which evidence supports the shipping decision?",
+      "expected_answer_contains": ["ship", "Friday"],
+      "expected_segment_ids": ["segment-2"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-007",
+      "kind": "semantic",
+      "question": "Did the team select a browser-based or device-native first flow?",
+      "expected_answer_contains": ["browser"],
+      "expected_segment_ids": ["segment-2"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-008",
+      "kind": "semantic",
+      "question": "What does the recording say about expected processing expense?",
+      "expected_answer_contains": ["twelve cents"],
+      "expected_segment_ids": ["segment-4"],
+      "should_abstain": false
+    },
+    {
+      "id": "ask-semantic-009",
+      "kind": "semantic",
+      "question": "Which customer will receive the upload flow?",
+      "expected_answer_contains": [],
+      "expected_segment_ids": [],
+      "should_abstain": true
+    },
+    {
+      "id": "ask-semantic-010",
+      "kind": "semantic",
+      "question": "What lunch was ordered for the meeting?",
+      "expected_answer_contains": [],
+      "expected_segment_ids": [],
+      "should_abstain": true
+    }
+  ]
+}
+

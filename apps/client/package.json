@@ -1,0 +1,47 @@
+{
+  "name": "@pocket-demo/client",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "expo start",
+    "web": "expo start --web --port 8081",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "export": "expo export --platform web",
+    "prebuild": "expo prebuild --clean",
+    "build:ios": "npx eas-cli build --platform ios",
+    "build:android": "npx eas-cli build --platform android",
+    "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "expo": "~57.0.20",
+    "expo-audio": "~57.0.4",
+    "expo-crypto": "~57.0.2",
+    "expo-document-picker": "~57.0.1",
+    "expo-file-system": "~57.0.6",
+    "expo-router": "~57.0.19",
+    "expo-sharing": "~57.0.18",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.2",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "react-native-web": "~0.21.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "eslint": "^9.39.1",
+    "eslint-config-expo": "~57.0.2",
+    "typescript": "~6.0.3",
+    "vitest": "^4.0.18"
+  }
+}
