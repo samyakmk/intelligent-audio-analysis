@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,6 +12,35 @@ from .demo_fixture import FIXTURE_SHA256, load_fixture_sidecar
 
 class ProviderUnavailable(RuntimeError):
     pass
+
+
+class ProviderDataPolicyDenied(ProviderUnavailable):
+    """Remote processing was requested for content without persisted approval."""
+
+
+class ProviderBilledFailure(ProviderUnavailable):
+    """Terminal failure with trustworthy provider usage that must be ledgered."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        attempt_id: str,
+        provider: str,
+        model_alias: str,
+        resolved_model: str,
+        usage: dict[str, Any],
+        estimated_cost_usd: float,
+        provenance: dict[str, Any],
+    ):
+        super().__init__(message)
+        self.attempt_id = attempt_id
+        self.provider = provider
+        self.model_alias = model_alias
+        self.resolved_model = resolved_model
+        self.usage = usage
+        self.estimated_cost_usd = estimated_cost_usd
+        self.provenance = provenance
 
 
 class SpeechUnconfigured(ProviderUnavailable):
@@ -29,6 +59,9 @@ class SpeechRequest:
     require_timestamps: bool
     budget_usd: float
     request_id: str
+    audio_bytes: bytes | None = None
+    content_type: str = "application/octet-stream"
+    duration_ms: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +80,26 @@ class SpeechAdapter(ABC):
     @abstractmethod
     def transcribe(self, request: SpeechRequest) -> SpeechResult: ...
 
+    def estimate_transcription_reservation(self, request: SpeechRequest) -> float:
+        return 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class AskRequest:
+    question: str
+    evidence: list[dict[str, Any]]
+    request_id: str
+    budget_usd: float
+    deep: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class AskResult:
+    answer: str
+    citations: list[dict[str, Any]]
+    abstained: bool
+    provenance: dict[str, Any]
+
 
 class LLMAdapter(ABC):
     @abstractmethod
@@ -58,7 +111,25 @@ class LLMAdapter(ABC):
         segments: list[dict[str, Any]],
         request_id: str,
         budget_usd: float,
+        deep: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]: ...
+
+    def answer(self, request: AskRequest) -> AskResult:
+        raise ProviderUnavailable("This LLM adapter does not implement cited Ask.")
+
+    def estimate_intelligence_reservation(
+        self,
+        *,
+        recording_id: str,
+        transcript_version: int,
+        segments: list[dict[str, Any]],
+        budget_usd: float,
+        deep: bool = False,
+    ) -> float:
+        return 0.0
+
+    def estimate_ask_reservation(self, request: AskRequest) -> float:
+        return 0.0
 
 
 class EmbeddingAdapter(ABC):
@@ -104,6 +175,11 @@ class MockFixtureSpeechAdapter(SpeechAdapter):
 class MockFixtureLLMAdapter(LLMAdapter):
     def __init__(self, fixture_root: Path):
         self.sidecar = load_fixture_sidecar(fixture_root)
+        quality_path = fixture_root / "quality" / "ask-questions.json"
+        quality = json.loads(quality_path.read_text(encoding="utf-8"))
+        self.ask_labels = {
+            str(item["question"]).casefold(): item for item in quality.get("questions", [])
+        }
 
     def extract_intelligence(
         self,
@@ -113,6 +189,7 @@ class MockFixtureLLMAdapter(LLMAdapter):
         segments: list[dict[str, Any]],
         request_id: str,
         budget_usd: float,
+        deep: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         expected = [item["text"] for item in self.sidecar["segments"]]
         if [item["text"] for item in segments] != expected:
@@ -138,6 +215,29 @@ class MockFixtureLLMAdapter(LLMAdapter):
         }
         return payload, provenance
 
+    def answer(self, request: AskRequest) -> AskResult:
+        """Apply checked-in fixture abstention labels without polluting domain logic."""
+
+        label = self.ask_labels.get(request.question.casefold())
+        if label is None or not label.get("should_abstain"):
+            raise ProviderUnavailable("No scripted fixture Ask response matches this question.")
+        return AskResult(
+            answer="I don't have enough accessible evidence in this scope to answer that question.",
+            citations=[],
+            abstained=True,
+            provenance={
+                "mock": True,
+                "provider": "mock.fixture",
+                "model_alias": "llm.fixture",
+                "resolved_model": "approved-ask-labels-v1",
+                "provider_request_id": request.request_id,
+                "strategy": "approved_fixture_abstention_label",
+                "llm_called": False,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+                "estimated_cost_usd": 0.0,
+            },
+        )
+
 
 class MockHashEmbeddingAdapter(EmbeddingAdapter):
     """Stable local fingerprints for provenance; lexical search remains authoritative."""
@@ -161,6 +261,27 @@ class MockHashEmbeddingAdapter(EmbeddingAdapter):
                 "warning": "Vectors are stable fingerprints, not semantic embeddings.",
             },
         }
+
+
+def create_provider_adapters(settings: Any) -> tuple[SpeechAdapter, LLMAdapter]:
+    """Build runtime adapters without ever loading dotenv files.
+
+    The loose settings annotation avoids coupling the provider contracts to the
+    configuration module. Gemini is imported lazily so fixture-only startup has
+    no paid-provider side effects.
+    """
+
+    if settings.provider_mode in {"fixture", "mock"}:
+        return (
+            MockFixtureSpeechAdapter(settings.fixture_root),
+            MockFixtureLLMAdapter(settings.fixture_root),
+        )
+    if settings.provider_mode == "gemini":
+        from .gemini_provider import GeminiAdapter
+
+        adapter = GeminiAdapter.from_settings(settings)
+        return adapter, adapter
+    raise ProviderUnavailable(f"Unsupported provider mode: {settings.provider_mode}")
 
 
 def _copy_nested(value: Any) -> Any:

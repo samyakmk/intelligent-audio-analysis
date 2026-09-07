@@ -252,7 +252,7 @@ def logically_tombstone_recording(
     for reservation in db.scalars(
         select(BudgetReservation).where(BudgetReservation.recording_id == recording.id)
     ).all():
-        if reservation.status == "reserved":
+        if reservation.status in {"reserved", "dispatching"}:
             if reservation.reserved_usd <= 0:
                 reservation.status = "released"
                 reservation.release_reason = "recording_deleted_zero_cost_attempt"
@@ -273,7 +273,7 @@ def logically_tombstone_recording(
                 BudgetReservation.ask_session_id.in_(removed_ask_session_ids)
             )
         ).all():
-            if reservation.status == "reserved":
+            if reservation.status in {"reserved", "dispatching"}:
                 if reservation.reserved_usd <= 0:
                     reservation.status = "released"
                     reservation.release_reason = "recording_deleted_zero_cost_attempt"

@@ -18,6 +18,7 @@ from .providers import (
     MockFixtureLLMAdapter,
     MockFixtureSpeechAdapter,
     MockHashEmbeddingAdapter,
+    create_provider_adapters,
 )
 from .routes import auth, discovery, recordings
 from .seed import seed_reference_data
@@ -28,8 +29,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     validate_runtime_settings(resolved)
     database = Database(resolved.database_url)
     blob_store = create_blob_store(resolved)
-    speech_adapter = MockFixtureSpeechAdapter(resolved.fixture_root)
-    llm_adapter = MockFixtureLLMAdapter(resolved.fixture_root)
+    speech_adapter, llm_adapter = create_provider_adapters(resolved)
+    # Demo seeding must remain deterministic and must never dispatch a paid
+    # provider call simply because the runtime provider is enabled.
+    seed_speech_adapter = MockFixtureSpeechAdapter(resolved.fixture_root)
+    seed_llm_adapter = MockFixtureLLMAdapter(resolved.fixture_root)
     embedding_adapter = MockHashEmbeddingAdapter()
     retention_maintenance = RetentionMaintenance(
         database,
@@ -51,8 +55,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         seed_demo_recordings(
             database,
             blob_store,
-            speech_adapter,
-            llm_adapter,
+            seed_speech_adapter,
+            seed_llm_adapter,
             resolved,
         )
         if resolved.inline_worker:
@@ -118,9 +122,51 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "database": "ready",
             "blob_store": resolved.blob_store_backend,
             "processing_mode": "inline" if resolved.inline_worker else "external_worker",
-            "provider_mode": "approved_fixture_only",
-            "remote_provider_calls_allowed": False,
+            "provider_mode": (
+                "approved_fixture_only"
+                if resolved.provider_mode in {"fixture", "mock"}
+                else resolved.provider_mode
+            ),
+            "remote_provider_calls_allowed": resolved.allow_remote_provider_calls,
             "active_recordings": recording_count or 0,
+        }
+
+    @application.get("/v1/capabilities", tags=["health"])
+    def capabilities() -> dict[str, object]:
+        gemini_enabled = resolved.provider_mode == "gemini" and resolved.allow_remote_provider_calls
+        maximum_seconds = resolved.max_duration_ms // 1000
+        return {
+            "provider_mode": resolved.provider_mode,
+            "remote_processing": gemini_enabled,
+            "data_policy": resolved.provider_data_policy,
+            "allowed_languages": list(resolved.provider_allowed_languages),
+            "max_audio_duration_seconds": maximum_seconds,
+            "speech": {
+                "model_alias": "speech.standard" if gemini_enabled else "speech.fixture",
+                "max_duration_seconds": maximum_seconds,
+                "diarization": True,
+                "timestamps": True,
+                "vocabulary_hints": True,
+            },
+            "intelligence": {
+                "cheap_model_alias": "llm.cheap" if gemini_enabled else "llm.fixture",
+                "strong_model_alias": "llm.strong" if gemini_enabled else None,
+                "deep_available": gemini_enabled,
+            },
+            "ask": {
+                "cheap_model_alias": "llm.cheap" if gemini_enabled else "llm.none",
+                "strong_model_alias": "llm.strong" if gemini_enabled else None,
+                "deep_available": gemini_enabled,
+            },
+            "features": {
+                "transcript": True,
+                "intelligence": True,
+                "mind_map": True,
+                "search": True,
+                "ask": True,
+                "tasks": True,
+                "exports": True,
+            },
         }
 
     return application

@@ -10,6 +10,7 @@ from app.domain import (
     BudgetReservationUnavailable,
     _cost_once,
     commit_budget,
+    mark_budget_dispatched,
     release_budget,
     reserve_budget,
     settle_interrupted_budget,
@@ -272,6 +273,60 @@ def test_interrupted_budget_settlement_is_idempotent_and_preserves_ambiguous_spe
                 per_request_cap_usd=0.5,
             )
         assert monthly_error.value.code == "workspace_monthly_budget_exceeded"
+        db.commit()
+
+
+def test_durable_dispatch_fence_blocks_paid_crash_replay(client: TestClient) -> None:
+    login(client)
+    with client.app.state.database.session_factory() as db:
+        reservation = reserve_budget(
+            db,
+            attempt_id="paid-dispatch-crash",
+            workspace_id="workspace-alpha",
+            stage="ask",
+            amount_usd=0.05,
+            per_request_cap_usd=0.10,
+        )
+        mark_budget_dispatched(db, attempt_id=reservation.attempt_id)
+        db.commit()
+
+        with pytest.raises(BudgetReservationUnavailable, match="may already have been dispatched"):
+            reserve_budget(
+                db,
+                attempt_id=reservation.attempt_id,
+                workspace_id="workspace-alpha",
+                stage="ask",
+                amount_usd=0.05,
+                per_request_cap_usd=0.10,
+            )
+
+        # Recovery has no reliable in-memory dispatch marker after a process
+        # exit. The durable state still preserves the ambiguous charge fence.
+        settle_interrupted_budget(
+            db,
+            attempt_id=reservation.attempt_id,
+            provider_dispatched=False,
+            reason="worker_recovered_after_crash",
+        )
+        assert reservation.status == "reconciliation_pending"
+        db.commit()
+
+
+def test_dispatched_reservation_can_commit_verified_usage(client: TestClient) -> None:
+    login(client)
+    with client.app.state.database.session_factory() as db:
+        reservation = reserve_budget(
+            db,
+            attempt_id="paid-dispatch-success",
+            workspace_id="workspace-alpha",
+            stage="intelligence",
+            amount_usd=0.20,
+            per_request_cap_usd=0.20,
+        )
+        mark_budget_dispatched(db, attempt_id=reservation.attempt_id)
+        committed = commit_budget(db, attempt_id=reservation.attempt_id, actual_usd=0.12)
+        assert committed.status == "committed"
+        assert committed.committed_usd == pytest.approx(0.12)
         db.commit()
 
 

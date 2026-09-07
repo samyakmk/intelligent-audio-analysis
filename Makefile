@@ -11,7 +11,7 @@ SAFE_COMPOSE := $(PYTHON) scripts/compose.py
 
 export EXPO_NO_DOTENV := 1
 
-.PHONY: help setup run test test-backend test-client lint lint-backend lint-client \
+.PHONY: help setup run run-gemini test test-backend test-client lint lint-backend lint-client \
 	typecheck web export web-export prebuild fixtures migrate migration-current \
 	migration-check compose-config compose-up compose-down compose-logs \
 	compose-up-configured compose-config-configured
@@ -24,6 +24,10 @@ setup: ## Install locked backend/client dependencies and verify fixtures.
 
 run: ## Run the zero-account SQLite/filesystem API and Expo browser app.
 	@$(PYTHON) scripts/run_local.py
+
+run-gemini: ## Run locally with Gemini using ENV_FILE=/absolute/private/path.
+	@test -n "$(ENV_FILE)" || { echo "set ENV_FILE to an absolute private configuration path" >&2; exit 2; }
+	@$(PYTHON) scripts/run_local.py --provider-mode gemini --env-file "$(ENV_FILE)"
 
 fixtures: ## Verify generated media, sidecars, questions, and gate metadata.
 	@$(PYTHON) scripts/generate_fixture_wav.py --check

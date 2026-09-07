@@ -163,11 +163,42 @@ def create_upload_session(
             "upload_headers": {"X-Upload-Token": _derive_upload_token(settings, prior["id"])},
         }
     if payload.mode == "deep":
+        if settings.provider_mode != "gemini" or not settings.allow_remote_provider_calls:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "capability_unavailable",
+                    "message": "Deep processing requires the configured Gemini provider.",
+                },
+            )
+    if (
+        settings.provider_mode == "gemini"
+        and settings.allow_remote_provider_calls
+        and not payload.provider_data_approved
+    ):
         raise HTTPException(
-            status_code=409,
+            status_code=422,
             detail={
-                "code": "capability_unavailable",
-                "message": "Deep processing is unavailable in fixture-only mode.",
+                "code": "provider_data_approval_required",
+                "message": (
+                    "This upload must be explicitly approved for the configured remote "
+                    "provider data-policy lane."
+                ),
+            },
+        )
+    if (
+        settings.provider_mode == "gemini"
+        and settings.allow_remote_provider_calls
+        and payload.language.casefold() == "auto"
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "provider_language_required",
+                "message": (
+                    "Gemini uploads require an explicit allowlisted language before audio leaves "
+                    "the local machine. English is the evaluated demo route."
+                ),
             },
         )
     if payload.size_bytes > settings.max_upload_bytes:
@@ -211,6 +242,7 @@ def create_upload_session(
         content_type=payload.content_type,
         requested_language=payload.language,
         requested_mode=payload.mode,
+        provider_data_approved=payload.provider_data_approved,
         vocabulary_hints=payload.vocabulary_hints,
         size_bytes=payload.size_bytes,
         status="UPLOADING",
@@ -242,6 +274,7 @@ def create_upload_session(
             "upload_headers": {"X-Upload-Token": upload_token},
             "expires_at": expires_at,
             "max_bytes": settings.max_upload_bytes,
+            "provider_data_approved": recording.provider_data_approved,
         }
     )
     persisted_response = {key: value for key, value in response.items() if key != "upload_headers"}
@@ -569,9 +602,7 @@ def list_recordings(
     )
     if state:
         query = query.where(Recording.status == state.upper())
-    all_items = db.scalars(
-        query.order_by(Recording.created_at.desc()).with_for_update()
-    ).all()
+    all_items = db.scalars(query.order_by(Recording.created_at.desc()).with_for_update()).all()
     page = all_items[offset : offset + limit]
     next_cursor = str(offset + limit) if offset + limit < len(all_items) else None
     return {
@@ -765,12 +796,29 @@ def regenerate(
     if workspace is None:
         raise HTTPException(status_code=403, detail="Workspace is unavailable")
     recording = require_recording(db, recording_id, auth.workspace_id, lock=True)
-    if payload.mode == "deep":
+    settings = request.app.state.settings
+    if (
+        settings.provider_mode == "gemini"
+        and settings.allow_remote_provider_calls
+        and not recording.provider_data_approved
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "provider_data_approval_required",
+                "message": (
+                    "This recording was not approved for the configured remote data-policy lane."
+                ),
+            },
+        )
+    if payload.mode == "deep" and (
+        settings.provider_mode != "gemini" or not settings.allow_remote_provider_calls
+    ):
         raise HTTPException(
             status_code=409,
             detail={
                 "code": "capability_unavailable",
-                "message": "Deep regeneration is unavailable in fixture-only mode.",
+                "message": "Deep regeneration requires the configured Gemini provider.",
             },
         )
     fingerprint = _request_fingerprint(payload)
@@ -793,6 +841,7 @@ def regenerate(
             payload.summary_style,
             attempt_id,
             request.app.state.settings.recording_cost_ceiling_usd,
+            deep=payload.mode == "deep",
         )
         invalidate_dependent_views(db, recording)
         response = recording_detail_payload(db, recording)
@@ -1088,6 +1137,7 @@ def delete_recording(
         reason="user_requested",
     )
     return Response(status_code=204)
+
 
 def _version_header(value: str | None) -> int | None:
     if not value:

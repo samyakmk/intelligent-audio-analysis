@@ -88,11 +88,10 @@ boundaries, not separately deployed microservices.
 
 - `fixture`/`mock`: a known media hash resolves to checked-in, human-readable canonical
   artifacts. This is the only no-key path that exercises the complete AI workflow.
-- `remote`: a reserved mode for future speech, LLM, and embedding adapters. This
-  checkpoint deliberately has no network implementation and fails startup if remote
-  mode or remote-call permission is requested. A future adapter must use the existing
-  reservation/admission service with honest nonzero estimates, then add capability
-  checks, invoice reconciliation, and long-call lease heartbeats before paid calls.
+- `gemini`: an explicit opt-in route for Gemini Files/Interactions speech, grounded
+  intelligence, and cited Ask. It requires approved data, pinned model IDs, a reviewed
+  base URL/rate catalog, nonzero reservation admission, and the remote-call gate.
+  Embeddings remain unconfigured, so Search retrieval is still lexical.
 
 Non-generative helpers—lexical ranking, extractive cited answers, projections, and
 exports—run locally; they are components, not a selectable `PROVIDER_MODE`.
@@ -113,10 +112,10 @@ UPLOADING -> VERIFYING -> SEALED -> PROCESSING -> READY
 ```
 
 A correction creates a transcript version and invalidates/rebuilds intelligence and
-evidence without invoking speech again. A Deep regeneration creates a new downstream
-version and budget once a strong remote adapter exists; the fixture build rejects that
-request explicitly. Cancel preserves committed canonical assets; delete purges content
-while retaining de-identified attempt-cost records for spend integrity.
+evidence without invoking speech again. In Gemini mode, a Deep regeneration creates a
+new strong-model downstream version and budget; fixture mode rejects it explicitly.
+Cancel preserves committed canonical assets; delete purges content while retaining
+de-identified attempt-cost records for spend integrity.
 
 ## Configuration boundary
 
@@ -135,6 +134,6 @@ identity remain deferred until measured load or product requirements justify the
 
 Instrumented calls reserve budget durably under a workspace admission lock, then
 commit, release, or mark ambiguous attempts for reconciliation. Fixture calls reserve
-zero dollars, so this demonstrates lifecycle semantics rather than paid-provider
-pricing. A remote extension must supply conservative nonzero estimates and reconcile
-actual provider billing before the ledger or budget can be treated as financial truth.
+zero dollars. Gemini calls reserve a bounded worst-case estimate and settle against
+provider-reported token usage with a dated public price catalog; this is still an
+estimate until invoice reconciliation exists.

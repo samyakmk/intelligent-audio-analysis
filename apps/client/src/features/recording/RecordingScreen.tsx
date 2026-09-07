@@ -23,10 +23,13 @@ import {
   uiStyles,
 } from '@/components/ui';
 import { useResource } from '@/hooks/useResource';
+import { MindMap } from '@/features/mind-map/MindMap';
+import { canUseDeepIntelligence } from '@/features/capabilities/capabilities';
 import { api, unwrapItems } from '@/lib/api';
 import { downloadText, downloadUrl } from '@/platform/download';
 import { formatBytes, formatDate, formatDuration, formatMoney, isActiveState } from '@/lib/format';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, spacing } from '@/theme';
+import { useCapabilities } from '@/providers/CapabilitiesProvider';
 import type {
   Citation,
   CostSummary,
@@ -316,11 +319,14 @@ function OverviewPane({
   onRun(name: string, operation: () => Promise<unknown>, success: string): Promise<void>;
 }) {
   const { width } = useWindowDimensions();
+  const { capabilities, loading: capabilitiesLoading } = useCapabilities();
+  const deepAvailable = canUseDeepIntelligence(capabilities);
   const [title, setTitle] = useState(recording.title);
   const [tags, setTags] = useState((recording.tags ?? []).join(', '));
   const [folder, setFolder] = useState(recording.folder ?? '');
   const [style, setStyle] = useState(intelligence?.summary_style ?? summaryStyles[0]?.id ?? 'standard');
   const [mode, setMode] = useState<'standard' | 'deep'>('standard');
+  const selectedMode = deepAvailable ? mode : 'standard';
   const saveMetadata = () => onRun(
     'metadata',
     () => api.updateRecording(recording.id, {
@@ -379,17 +385,22 @@ function OverviewPane({
             {summaryStyles.map((item) => <Chip key={item.id} label={item.name} selected={style === item.id} onPress={() => setStyle(item.id)} />)}
           </View>
           <Segmented<'standard' | 'deep'>
-            value={mode}
+            value={selectedMode}
             onChange={setMode}
             options={[
               { value: 'standard', label: 'Standard' },
-              { value: 'deep', label: 'Deep', description: 'Remote adapter required', disabled: true },
+              {
+                value: 'deep',
+                label: 'Deep',
+                description: deepAvailable ? 'Gemini strong-model synthesis' : capabilitiesLoading ? 'Checking Gemini capability' : 'Configured Gemini strong route required',
+                disabled: !deepAvailable,
+              },
             ]}
           />
           <Button
             icon="refresh"
             loading={busy === 'regenerate'}
-            onPress={() => onRun('regenerate', () => api.regenerate(recording.id, style, mode), 'A new downstream intelligence version was requested.')}
+            onPress={() => onRun('regenerate', () => api.regenerate(recording.id, style, selectedMode), 'A new downstream intelligence version was requested.')}
           >
             Regenerate
           </Button>
@@ -531,21 +542,12 @@ function IntelligencePane({ recording, intelligence, error, onSeek }: { recordin
       <Card style={styles.paneCard}><SectionTitle title="Decisions" /><EvidenceList items={intelligence.decisions} empty="No cited decisions." onSeek={onSeek} /></Card>
       <Card style={styles.paneCard}><SectionTitle title="Actions" /><EvidenceList items={intelligence.actions} empty="No cited actions." onSeek={onSeek} kind="action" /></Card>
       <Card style={styles.paneCard}><SectionTitle title="Open questions" /><EvidenceList items={intelligence.open_questions} empty="No cited open questions." onSeek={onSeek} /></Card>
-      <Card style={[styles.paneCard, styles.fullCard]}>
-        <SectionTitle title="Topics" subtitle="A deterministic projection of cited topic intervals." />
-        <View style={styles.topicGrid}>
-          {intelligence.topics.map((topic) => (
-            <View key={`${topic.parent ?? 'root'}-${topic.label}`} style={styles.topicCard}>
-              <MaterialCommunityIcons name="tag-outline" size={17} color={colors.coralDark} />
-              <View style={styles.topicCopy}>
-                <Text style={styles.topicLabel}>{topic.label}</Text>
-                {topic.parent ? <Text style={styles.topicParent}>under {topic.parent}</Text> : null}
-              </View>
-              {topic.evidence[0] ? <CitationChip citation={topic.evidence[0]} onPress={(citation) => onSeek(citation.start_ms)} /> : null}
-            </View>
-          ))}
-        </View>
-      </Card>
+      <MindMap
+        recordingTitle={recording.title}
+        intelligenceTitle={intelligence.title.text}
+        topics={intelligence.topics}
+        onSeek={onSeek}
+      />
     </View>
   );
 }
@@ -708,12 +710,6 @@ const styles = StyleSheet.create({
   speakerEditorLabel: { color: colors.ink, fontFamily: font.medium, fontSize: 12 },
   segmentCount: { color: colors.inkFaint, fontSize: 9 },
   intelligenceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xl },
-  fullCard: { width: '100%' },
-  topicGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  topicCard: { flex: 1, minWidth: 240, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.canvas, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  topicCopy: { flex: 1, gap: 2 },
-  topicLabel: { color: colors.ink, fontFamily: font.medium, fontSize: 12 },
-  topicParent: { color: colors.inkFaint, fontSize: 9 },
   costMetrics: { flexDirection: 'row', gap: spacing.lg, flexWrap: 'wrap' },
   costMetric: { flex: 1, minWidth: 190, gap: spacing.sm, shadowOpacity: 0 },
   costMetricLabel: { color: colors.inkMuted, fontSize: 11 },

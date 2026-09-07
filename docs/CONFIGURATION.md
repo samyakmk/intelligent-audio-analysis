@@ -2,8 +2,9 @@
 
 The checked-in `.env.example` is the complete configuration inventory for this
 demo. It contains conspicuous placeholders and safe fixture defaults only. The
-application never searches for, opens, or loads a dotenv file; values enter through
-the process environment or through the explicit Compose wrapper.
+API/client application code never searches for or implicitly loads a dotenv file;
+values enter through the process environment, the explicit local Gemini launcher, or
+the explicit Compose wrapper.
 
 ## Consumed now versus reserved inventory
 
@@ -15,19 +16,22 @@ values are consumed today:
   `S3_KEY_PREFIX`, `FIXTURE_ROOT`, `DEMO_MODE`, `INLINE_WORKER`, `COOKIE_SECURE`,
   `CORS_ORIGINS`, `SESSION_SECRET`/`TOKEN_SIGNING_SECRET`, session/media TTLs,
   upload/duration limits, all three AI spend ceilings, worker lease duration,
-  inline sweeper interval, workspace quotas, `RECORDING_RETENTION_DAYS`, `PROVIDER_MODE`, and
-  `ALLOW_REMOTE_PROVIDER_CALLS`.
+  inline sweeper interval, workspace quotas, `RECORDING_RETENTION_DAYS`,
+  `PROVIDER_MODE`, and `ALLOW_REMOTE_PROVIDER_CALLS`. Gemini mode also consumes
+  `GEMINI_API_KEY`, `GEMINI_BASE_URL`, `GEMINI_SPEECH_MODEL`, cheap/strong model IDs,
+  repair/context limits, request/upload retry settings, provider data/language policy,
+  and the dated Gemini rate inputs.
 - Compose/launchers: PostgreSQL/MinIO credentials and ports,
   `COMPOSE_DATABASE_URL`, API/web ports, worker poll interval, and the backend values above.
 - Universal client/build: `EXPO_PUBLIC_API_URL`, status polling, media-grant refresh,
   `EXPO_PUBLIC_DEMO_MODE`, app name/slug/scheme, iOS/Android identifiers, and optional
   EAS project ID.
 
-All other entries—including provider keys/model IDs, price reconciliation, telemetry,
-rate limits, failure injection, proxy trust, cookie-name/SameSite, and most tuning
-knobs—are reserved contracts or operator checklists. Supplying them does nothing until
-the corresponding adapter or policy is implemented and tested. `PROVIDER_MODE=remote`
-and `ALLOW_REMOTE_PROVIDER_CALLS=true` fail startup.
+All other entries—including non-Gemini provider keys/model IDs, invoice
+reconciliation, embeddings, telemetry, rate limits, failure injection, proxy trust,
+cookie-name/SameSite, and most hosted tuning knobs—are reserved contracts or operator
+checklists. Supplying them does nothing until the corresponding adapter or policy is
+implemented and tested. Unknown provider modes fail startup.
 
 ## No-account fixture run
 
@@ -66,6 +70,27 @@ ENV_FILE=/absolute/path/to/pocket-demo.env make compose-up-configured
 The wrapper rejects a bare `.env` path. Real environment variants are excluded by
 both `.gitignore` and `.dockerignore`.
 
+For the lightweight local Gemini profile, use the dedicated launcher instead:
+
+```sh
+make setup
+ENV_FILE=/absolute/path/to/.env make run-gemini
+```
+
+It accepts an absolute path only, parses assignments without shell evaluation, passes
+only Gemini/model/budget/data-policy keys to the API, never passes the key to Expo, and
+forces local SQLite/filesystem/loopback settings. It runs Alembic before starting the
+inline worker and browser client. The local Gemini profile uses a 30-minute worker
+lease so bounded provider waits can complete; shared workers still need active
+heartbeats before production use. The file does not need to contain
+`PROVIDER_MODE`/`ALLOW_REMOTE_PROVIDER_CALLS`; the dedicated command sets both gates.
+
+The reviewed September 2026 demo routes are `gemini-3.5-transcribe` for eligible
+timestamped speech, `gemini-3.5-flash-lite` for routine structured extraction/Ask and
+long-audio fallback, and stable `gemini-3.8-flash` for Deep or failed-schema escalation.
+The checked-in price inputs use the published introductory 3.8 Flash rate through
+December 31, 2026; review and update the dated catalog before running in 2027.
+
 ## Values to supply before a shared or hosted demo
 
 - Public API/web origins, TLS termination, and `COOKIE_SECURE=true`; wire and test
@@ -100,19 +125,25 @@ EXPO_NO_DOTENV=1 EXPO_PUBLIC_API_URL=https://api.example.test npm --prefix apps/
 
 ## Provider status in this checkpoint
 
-The checked-in remote provider entries are contracts and placeholders, not active
-network adapters. The runnable implementation uses the approved fixture speech/LLM
-adapters plus deterministic lexical retrieval. Supplying keys alone does not enable
-paid calls. A remote adapter must still implement the existing provider ports,
-capability checks, callback/idempotency rules, price resolution, nonzero reservation
-estimates, billing reconciliation, atomic deletion-fenced dispatch, membership-policy
-rechecks, lease heartbeats, and fixture quality gate. This is intentional: missing
-external approval cannot silently cause media or transcript text to leave the machine.
+The approved fixture route remains the default and never makes network calls. The
+implemented Gemini route uses Files plus stateless Interactions for timestamped speech,
+schema-validated intelligence, and bounded cited Ask. It prefers dedicated Transcribe
+within the provider's 30-minute diarization/timestamp limit and automatically falls back
+to Flash-Lite structured audio for longer recordings. Standard text calls start on
+Flash-Lite, perform only bounded validation repair, and can escalate once to stable
+Gemini 3.8 Flash when evidence is sufficient; explicit Deep requests start on 3.8 Flash.
+Safety/policy blocks and absent evidence never escalate.
 
-Arbitrary valid audio is still accepted, byte-verified, retained as an immutable
-original, and reported as `PARTIAL / speech_unconfigured`; no transcript or prose is
-invented. The exact fixture hash is the only zero-key path that publishes scripted
-canonical artifacts.
+Every remote upload requires a persisted per-file approval. With the only supported
+policy value, `synthetic-approved-only`, do not submit private, personal, confidential,
+or production recordings. Uploaded Gemini Files are deleted immediately on a
+best-effort basis but may remain under the provider's retention behavior if deletion
+fails. Review current provider terms before use.
+
+Without Gemini activation, arbitrary valid audio is accepted, byte-verified, retained
+as an immutable original, and reported as `PARTIAL / speech_unconfigured`; no
+transcript or prose is invented. The exact fixture hash remains the zero-key path that
+publishes scripted canonical artifacts.
 
 ## Current operational boundaries
 
@@ -124,9 +155,10 @@ canonical artifacts.
 - Worker and throttled inline maintenance tombstone expired recordings, expire
   abandoned uploads, and retry physical purge. This does not prove provider/backups
   deletion or a production deletion SLA.
-- Durable reservation/admission and settlement cover instrumented fixture paths.
-  Paid adapters must supply conservative nonzero estimates and reconcile actual or
-  ambiguous provider billing before those controls become financial guarantees.
+- Durable reservation/admission and settlement use conservative nonzero Gemini
+  estimates and provider-reported token usage. Cost events remain dated-price
+  estimates until invoice reconciliation is implemented; ambiguous transport outcomes
+  remain fenced for manual reconciliation rather than silently redispatched.
 - The included SSE endpoint replays persisted events and a snapshot; the client uses
   polling for active demo states. A hosted service should add a durable live event
   fan-out path.

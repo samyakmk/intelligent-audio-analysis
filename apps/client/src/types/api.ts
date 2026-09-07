@@ -108,6 +108,7 @@ export interface UploadOptions {
   language: string;
   vocabulary_hints: string[];
   mode: 'standard' | 'deep';
+  provider_data_approved: boolean;
 }
 
 export interface UploadSession {
@@ -305,6 +306,40 @@ export interface SummaryStyle {
   description: string;
 }
 
+export interface ProviderCapabilities {
+  provider_mode: 'fixture' | 'gemini';
+  remote_processing: boolean;
+  data_policy: string;
+  allowed_languages: string[];
+  max_audio_duration_seconds: number;
+  speech: {
+    model_alias: string;
+    max_duration_seconds: number;
+    diarization: boolean;
+    timestamps: boolean;
+    vocabulary_hints: boolean;
+  };
+  intelligence: {
+    cheap_model_alias: string;
+    strong_model_alias: string | null;
+    deep_available: boolean;
+  };
+  ask: {
+    cheap_model_alias: string;
+    strong_model_alias: string | null;
+    deep_available: boolean;
+  };
+  features: {
+    transcript: boolean;
+    intelligence: boolean;
+    mind_map: boolean;
+    search: boolean;
+    ask: boolean;
+    tasks: boolean;
+    exports: boolean;
+  };
+}
+
 export interface CostEvent {
   id: Id;
   recording_id?: Id;
@@ -314,7 +349,7 @@ export interface CostEvent {
   resolved_model?: string;
   billed_units: string;
   estimated_cost_usd: number;
-  reconciled_cost_usd?: number;
+  reconciled_cost_usd?: number | null;
   reconciled_at?: IsoDate;
   cached?: boolean;
   reused?: boolean;

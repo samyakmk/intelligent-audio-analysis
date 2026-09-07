@@ -14,6 +14,9 @@ from sqlalchemy.orm import Session
 from ..auth import AuthContext, require_auth, require_mutation_auth
 from ..database import get_db
 from ..domain import (
+    BudgetExceeded,
+    BudgetReservationUnavailable,
+    StaleGeneration,
     answer_question,
     export_content,
     invalidate_dependent_views,
@@ -33,6 +36,7 @@ from ..models import (
     TranscriptVersion,
     Workspace,
 )
+from ..providers import ProviderDataPolicyDenied, ProviderUnavailable
 from ..schemas import (
     AskMessageCreate,
     AskSessionCreate,
@@ -326,6 +330,17 @@ def ask_message(
     question = payload.content or payload.question
     if not question:
         raise HTTPException(status_code=422, detail="Message content is required")
+    settings = request.app.state.settings
+    if payload.deep and (
+        settings.provider_mode != "gemini" or not settings.allow_remote_provider_calls
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "capability_unavailable",
+                "message": "Deep Ask requires the configured Gemini provider.",
+            },
+        )
     workspace = db.scalar(
         select(Workspace).where(Workspace.id == auth.workspace_id).with_for_update()
     )
@@ -360,21 +375,45 @@ def ask_message(
     prior = _idempotent_response(db, auth.workspace_id, operation, idempotency_key, fingerprint)
     if prior is not None:
         return prior
-    message = answer_question(
-        db,
-        ask_session_id=ask_session.id,
-        workspace_id=auth.workspace_id,
-        question=question,
-        recording_ids=ask_session.recording_ids,
-        selection_segment_ids=ask_session.selection_segment_ids,
-        budget_usd=request.app.state.settings.ask_cost_ceiling_usd,
-    )
-    if payload.deep:
-        message.provenance = {
-            **message.provenance,
-            "deep_requested": True,
-            "deep_provider_configured": False,
-        }
+    try:
+        message = answer_question(
+            db,
+            ask_session_id=ask_session.id,
+            workspace_id=auth.workspace_id,
+            question=question,
+            recording_ids=ask_session.recording_ids,
+            selection_segment_ids=ask_session.selection_segment_ids,
+            budget_usd=settings.ask_cost_ceiling_usd,
+            llm=request.app.state.llm_adapter,
+            deep=payload.deep,
+        )
+    except (BudgetExceeded, BudgetReservationUnavailable) as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": getattr(exc, "code", "budget_unavailable"),
+                "message": str(exc),
+            },
+        ) from exc
+    except StaleGeneration as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "source_changed", "message": str(exc)},
+        ) from exc
+    except ProviderDataPolicyDenied as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "provider_data_approval_required", "message": str(exc)},
+        ) from exc
+    except ProviderUnavailable as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "provider_unavailable", "message": str(exc)},
+        ) from exc
     result = jsonable_encoder(
         {
             "session_id": ask_session.id,
@@ -388,7 +427,7 @@ def ask_message(
                 "abstention_reason": "insufficient_accessible_evidence"
                 if message.abstained
                 else None,
-                "cost_usd": 0.0,
+                "cost_usd": float(message.provenance.get("estimated_cost_usd", 0.0)),
                 "provenance": message.provenance,
             },
         }
@@ -565,7 +604,12 @@ def costs(
         "baseline_version": "not-computed-functional-fixture",
         "quality_gate_passed": False,
         "comparison_eligible": False,
-        "notice": "Fixture calls cost $0 and are excluded from savings and model-quality claims.",
+        "notice": (
+            "Gemini costs are provider-usage-metered public-rate estimates; invoice "
+            "reconciliation and savings claims are not implemented."
+            if any(item.provider == "google.gemini" for item in events)
+            else "Fixture calls cost $0 and are excluded from savings and model-quality claims."
+        ),
     }
 
 

@@ -24,6 +24,23 @@ fences late workers, and cost comparisons are labeled as modeled scenarios.
 Mock provider results are labeled in provenance and cost records. They are not passed
 off as real transcription or model output.
 
+## What works with Gemini configured
+
+- Approved audio is uploaded to Gemini Files. Pocket prefers the dedicated Gemini
+  3.5 Transcribe route for timestamped/diarized clips up to 30 minutes and falls
+  back to Gemini 3.5 Flash-Lite structured audio for longer files, then deletes the
+  provider file on a best-effort basis.
+- Transcript-grounded summaries, facts, decisions, actions, topics, participants,
+  open questions, and the deterministic mind-map projection.
+- Cheap-first extraction and Ask, bounded validation repair, and at most one stable
+  Gemini 3.8 Flash attempt when Deep is requested or cheap output remains invalid.
+- Evidence-only Ask answers with exact retrieved-source citation validation and explicit
+  abstention. This validates source identity/quote bounds, not independent claim entailment.
+- Durable pre-dispatch budget reservations plus metered, dated-price cost estimates.
+
+Lexical Search, SQL/extractive exact answers, tasks, recaps, mind-map export, and
+other deterministic projections remain local and do not spend model tokens.
+
 ## Repository map
 
 ```text
@@ -52,14 +69,12 @@ only when validating non-WAV uploads in the lightweight host profile.
 
 ## Safe configuration
 
-The repository deliberately does not load a dotenv file in application code. The
-placeholder inventory is `.env.example`; it contains no credentials. Real `.env`
-variants are ignored and excluded from Docker contexts.
-
-After reviewed provider adapters are implemented, export their server values into the
-API/worker process (or pass an explicit operator-owned environment file to Compose).
-Never put a provider key in an `EXPO_PUBLIC_*` variable: those values are compiled into
-the app.
+The API and client never search for or implicitly load dotenv files. The placeholder
+inventory is `.env.example`; it contains no credentials. Real `.env` variants are
+ignored by Git and excluded from Docker contexts. The local Gemini launcher reads only
+an absolute file path you explicitly nominate, parses it as data rather than shell
+code, and passes an allowlisted subset to the API process only. Never put a provider
+key in an `EXPO_PUBLIC_*` variable: those values are compiled into the app.
 
 The only client configuration needed for local development is:
 
@@ -83,6 +98,21 @@ make run
 Open `http://localhost:8081`. The API schema is at
 `http://localhost:8000/docs`, and health is exposed at
 `http://localhost:8000/healthz`.
+
+For a local Gemini run, first review the provider terms and ensure every uploaded file
+fits the configured `synthetic-approved-only` lane. Then use your private file by
+absolute path:
+
+```sh
+make setup
+ENV_FILE=/absolute/path/to/.env make run-gemini
+```
+
+The launcher forces SQLite, filesystem blobs, loopback API hosting, and an inline
+worker. It also runs Alembic before startup. Your listed key/model/budget/policy values
+are sufficient; optional Gemini timeout and dated-price values use the reviewed
+defaults in `.env.example`. The upload UI additionally requires a per-file approval
+before any bytes can leave the machine.
 
 For a manual backend setup, use the service-local isolated environment:
 
@@ -161,18 +191,23 @@ EAS build profiles live in `apps/client/eas.json`. Store-signed builds still req
 your Apple/Google accounts, final bundle identifiers, signing credentials, and store
 metadata.
 
-## Moving from fixture to remote providers
+## Gemini provider boundary
 
-1. Review every placeholder and policy in `.env.example`.
-2. Accept the chosen providers' current retention, training, and regional terms.
-3. Implement the remote speech/LLM/embedding ports behind the existing adapter
-   contracts; this checkpoint intentionally ships fixture adapters only.
-4. Supply exact, smoke-tested model IDs and keys to server processes only.
-5. Run provider capability smoke tests and the governed fixture quality gate.
-6. Enter a dated price catalog before treating costs as anything beyond estimates.
+Gemini speech, intelligence, and cited Ask adapters are implemented. Activation still
+requires both the explicit `gemini` run mode and remote-call gate; the local launcher
+sets those only for `make run-gemini`. Startup rejects missing/placeholder credentials,
+unreviewed model IDs, an unofficial base URL, unsupported languages, and an unknown
+price-catalog version. The checked-in default remains the no-account fixture path.
 
-Supplying keys alone does not activate paid calls. Unsupported remote mode fails
-closed; see [the configuration handoff](docs/CONFIGURATION.md) for the exact boundary.
+The configured `synthetic-approved-only` policy is not permission to send private,
+personal, confidential, or production audio. The UI and API require a persisted
+per-upload approval. Review Google's current paid/unpaid data terms before using any
+recording. Provider quality and actual account/model availability still require an
+operator-run smoke whenever credentials, model access, or policy settings change. One
+local synthetic-spoken-audio smoke has verified the complete configured path through
+Gemini 3.5 Transcribe, Flash-Lite intelligence, Gemini 3.8 Flash Deep regeneration,
+and cited Flash-Lite Ask. The deterministic test suite still uses injected fake
+transports and never needs private credentials.
 
 Before a hosted demo claims the design's fixed-cost target, also record a dated bill
 of materials for web hosting, API/worker compute, database, object storage,
@@ -180,17 +215,17 @@ requests/egress, logs, backups, and domain/TLS.
 
 ## Deliberate limitations
 
-This build is implementation-ready for local fixture testing, not production-ready or
-deployed. It does not claim Pocket-scale durability, compliance, provider quality, or
-a universal savings percentage. The demo upload path buffers bytes and must become
-direct resumable multipart transfer for production-size media. Alembic owns the
-persistent schema, durable reservations protect the instrumented fixture call paths,
-and worker/inline maintenance enforces recording and abandoned-upload expiry with
-retryable physical purge. Real paid adapters still need nonzero cost estimation,
-ambiguous-outcome reconciliation, atomic deletion-fenced dispatch, membership-policy
-rechecks, and long-call lease heartbeats; live PostgreSQL/S3, real-browser, signed
-native, and target-device runs remain to be verified. Deployment proxies must suppress
-media capability URLs from access logs.
+This build is implementation-ready for local fixture and explicitly approved Gemini
+demo testing, not production-ready or deployed. It does not claim Pocket-scale
+durability, compliance, provider quality, or a universal savings percentage. The demo
+upload path buffers bytes and must become direct resumable multipart transfer for
+production-size media. Alembic owns the persistent schema, durable reservations cover
+Gemini dispatch and metered settlement, and worker/inline maintenance enforces
+recording and abandoned-upload expiry with retryable physical purge. A shared paid
+deployment still needs invoice reconciliation, atomic deletion-fenced dispatch,
+membership-policy rechecks, and long-call lease heartbeats; PostgreSQL/S3 concurrency,
+signed native, and target-device runs remain to be verified. Deployment proxies must
+suppress media capability URLs from access logs.
 Live/device capture, automatic voice identity, translation, custom templates, shared
 links, connectors, API/MCP/webhooks, enterprise identity, and multimodal ingestion
 remain documented extension points.

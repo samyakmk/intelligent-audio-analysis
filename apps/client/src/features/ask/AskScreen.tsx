@@ -18,7 +18,10 @@ import {
 } from '@/components/ui';
 import { useResource } from '@/hooks/useResource';
 import { api, unwrapItems } from '@/lib/api';
+import { canUseDeepAsk } from '@/features/capabilities/capabilities';
+import { ProviderPolicyNotice } from '@/features/capabilities/ProviderPolicyNotice';
 import { useSession } from '@/providers/SessionProvider';
+import { useCapabilities } from '@/providers/CapabilitiesProvider';
 import { colors, font, radius, spacing } from '@/theme';
 import type { AskMessage, AskScope, AskSession } from '@/types/api';
 
@@ -28,6 +31,8 @@ export default function AskScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { session: authSession } = useSession();
+  const { capabilities, loading: capabilitiesLoading } = useCapabilities();
+  const deepAvailable = canUseDeepAsk(capabilities);
   const recordingsResource = useResource(() => api.recordings(), [authSession?.workspace.id]);
   const recordings = recordingsResource.data ? unwrapItems(recordingsResource.data).filter((item) => item.readiness.indexed_ready) : [];
   const [scopeKind, setScopeKind] = useState<ScopeKind>('library');
@@ -69,7 +74,7 @@ export default function AskScreen() {
 
   const send = async (deep = false) => {
     const question = draft.trim();
-    if (!question || !scope || loading) return;
+    if (!question || !scope || loading || (deep && !deepAvailable)) return;
     setError(undefined);
     setLoading(true);
     const userMessage: AskMessage = {
@@ -99,8 +104,9 @@ export default function AskScreen() {
     <AppShell>
       <PageTitle
         title="Ask Pocket"
-        subtitle="Answers use a bounded, permission-filtered context pack. Citation support is validated before any answer appears."
+        subtitle="Answers use a bounded, permission-filtered context pack. Returned citations must exactly match retrieved source spans."
       />
+      <ProviderPolicyNotice />
       <View style={[styles.layout, width < 940 && styles.layoutNarrow]}>
         <View style={styles.chatColumn}>
           <Card style={styles.scopeBar}>
@@ -161,7 +167,7 @@ export default function AskScreen() {
                     <ActivityIndicator color={colors.coral} />
                     <View style={styles.validatingCopy}>
                       <Text style={styles.messageRole}>VALIDATING BEFORE DISPLAY</Text>
-                      <Text style={styles.validatingText}>Retrieving authorized evidence and checking claim-to-citation support…</Text>
+                      <Text style={styles.validatingText}>Retrieving authorized source spans and validating every returned citation…</Text>
                     </View>
                   </View>
                 ) : null}
@@ -180,7 +186,14 @@ export default function AskScreen() {
               <View style={styles.composerActions}>
                 <Text style={styles.composerHint}>No full-library prompt is sent to a model.</Text>
                 <View style={styles.sendButtons}>
-                  <Button variant="secondary" icon="creation-outline" disabled={!draft.trim() || !scope || loading} onPress={() => setDeepOpen(true)}>Deep</Button>
+                  <Button
+                    variant="secondary"
+                    icon="creation-outline"
+                    disabled={!draft.trim() || !scope || loading || !deepAvailable}
+                    onPress={() => setDeepOpen(true)}
+                  >
+                    Deep
+                  </Button>
                   <Button icon="send" disabled={!draft.trim() || !scope} loading={loading} onPress={() => send(false)}>Ask</Button>
                 </View>
               </View>
@@ -231,13 +244,20 @@ export default function AskScreen() {
                 <Text style={styles.ruleText}>{rule}</Text>
               </View>
             ))}
+            <Text style={styles.deepState}>
+              {deepAvailable
+                ? 'Gemini Deep is available for a separately confirmed request.'
+                : capabilitiesLoading
+                  ? 'Checking whether Gemini Deep is available…'
+                  : 'Deep remains disabled until the API confirms an active Gemini strong route.'}
+            </Text>
           </View>
         </Card>
       </View>
       <ConfirmDialog
-        visible={deepOpen}
+        visible={deepOpen && deepAvailable}
         title="Use a new Deep budget?"
-        body="Deep requests a stronger synthesis route over the same bounded cited evidence. This fixture build declines that unavailable route. A future paid adapter must use the existing transactional admission service with nonzero estimates and reconciliation, without relaxing evidence or privacy checks."
+        body="Deep requests the configured Gemini strong synthesis route over the same bounded cited evidence. It uses a separately confirmed budget without relaxing authorization, citation validation, or the active data policy."
         confirmLabel="Confirm Deep ask"
         loading={loading}
         onCancel={() => setDeepOpen(false)}
@@ -290,4 +310,5 @@ const styles = StyleSheet.create({
   rulesTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 12 },
   ruleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   ruleText: { flex: 1, color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
+  deepState: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 10, lineHeight: 16 },
 });

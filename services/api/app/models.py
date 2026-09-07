@@ -73,6 +73,7 @@ class Recording(Base):
     content_type: Mapped[str] = mapped_column(String(128), default="application/octet-stream")
     requested_language: Mapped[str] = mapped_column(String(32), default="en")
     requested_mode: Mapped[str] = mapped_column(String(16), default="standard")
+    provider_data_approved: Mapped[bool] = mapped_column(Boolean, default=False)
     vocabulary_hints: Mapped[list] = mapped_column(JSON, default=list)
     tags: Mapped[list] = mapped_column(JSON, default=list)
     folder: Mapped[str | None] = mapped_column(String(160), nullable=True)

@@ -9,16 +9,22 @@
   cancellation, and deletion fencing.
 - Fixture-backed transcript and intelligence artifacts with citations and provenance.
 - Transcript edits and speaker labels with downstream version invalidation.
-- Deterministic evidence search, cited/abstaining Ask, tasks, exports, and Cost Lab.
-- Provider ports, configuration placeholders, attempt-cost records, and failure states.
+- Deterministic evidence search, cited/abstaining Ask, tasks, exports, mind maps, and
+  Cost Lab.
+- An explicit Gemini Files/Interactions route for timestamped audio transcription,
+  schema- and exact-source-citation-validated intelligence, cited Ask, cheap repair/strong
+  escalation, safety policy, and per-file data approval.
+- Provider ports, capability discovery, durable budget reservations, metered dated-price
+  cost records, and failure states.
 - Automated backend, client, fixture-contract, migration, static web export, and
   iOS/Android bundle-generation checks to the extent supported by the local host.
 
 ## Requires operator input
 
-- Speech/LLM/embedding credentials and accepted provider retention/training terms.
-- Exact remote model IDs and a dated provider price catalog smoke-tested in the target
-  region.
+- Gemini credentials and accepted provider retention/training terms. Embedding
+  credentials remain optional because semantic Search is not implemented.
+- Re-run the live Gemini smoke whenever the billing project, credentials, pinned model
+  IDs, data policy, or dated public price catalog changes.
 - Hosted PostgreSQL/object-store endpoints and credentials if not using local Compose.
 - Public API/app origins, TLS/domain configuration, and a dated fixed-cost bill of
   materials before making the `$100/month` infrastructure claim.
@@ -29,15 +35,13 @@
 
 ## Partially scaffolded, not production-complete
 
-- Remote provider execution: ports and fail-closed configuration exist, but network
-  adapters, capability probes, callbacks, and paid calls are intentionally absent.
-  Atomic deletion-fenced provider dispatch, mid-flight membership-policy rechecks,
-  lease heartbeats, and an ambiguous-billing reconciler are required before enabling
-  a shared remote route.
-- Budget enforcement: durable transactional reservations, workspace admission, and
-  attempt settlement cover the instrumented fixture paths. Paid adapters still need
-  honest nonzero estimates plus provider-invoice reconciliation, including ambiguous
-  outcomes.
+- Remote production execution: Gemini network adapters and capability discovery are
+  implemented for explicit local use. Atomic deletion-fenced provider dispatch,
+  mid-flight membership-policy rechecks, lease heartbeats, and an automated
+  ambiguous-billing reconciler are still required before enabling a shared route.
+- Budget enforcement: durable transactional reservations, workspace/recording/request
+  admission, and token-usage settlement cover Gemini paths. Public-price results are
+  estimates until provider-invoice reconciliation exists.
 - Retention: worker and throttled inline maintenance tombstone expired recordings,
   expire abandoned uploads, and retry physical object purge. Provider copies, backups,
   legal hold, and production deletion-SLA evidence remain outside this demo.
@@ -51,9 +55,12 @@
   retrieval; semantic embeddings are disabled and visibly gated. Most exact intents
   use structured rows, but decision counts still read the current validated canonical
   intelligence document rather than a dedicated normalized decision table.
-- Runtime proof: live PostgreSQL/MinIO concurrency, real-browser interaction, signed
-  native builds, target-device cookies/media, and membership-revocation races have not
-  been exercised on this host.
+- Runtime proof: deterministic coverage uses an injected fake HTTP transport, and one
+  approved synthetic spoken clip has also completed the local live Gemini path through
+  transcription, standard intelligence, Deep regeneration, and cited Ask. This is not
+  a provider-quality corpus. PostgreSQL/MinIO concurrency, signed native builds,
+  target-device cookies/media, and membership-revocation races have not been exercised
+  on this host.
 
 ## Explicitly deferred
 

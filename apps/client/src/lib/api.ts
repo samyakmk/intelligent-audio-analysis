@@ -14,6 +14,7 @@ import type {
   ExportRequest,
   ExportResult,
   Page,
+  ProviderCapabilities,
   Recap,
   Recording,
   RecordingIntelligence,
@@ -201,6 +202,7 @@ function normalizeSession(value: Session & Record<string, unknown>): Session {
 }
 
 export const api = {
+  capabilities: () => request<ProviderCapabilities>('/v1/capabilities'),
   session: async () => normalizeSession(await request<Session & Record<string, unknown>>('/v1/auth/session')),
   demoLogin: (principalId: string) =>
     request<Session & Record<string, unknown>>('/v1/auth/demo-login', {

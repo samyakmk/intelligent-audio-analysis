@@ -17,9 +17,21 @@ import {
   uiStyles,
 } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
+import {
+  canUseDeepIntelligence,
+  canUploadInConfiguredLanguage,
+  isProviderDataApprovalSatisfied,
+  isRemoteGemini,
+  isSyntheticApprovedOnly,
+  requiresProviderDataApproval,
+  resolveUploadLanguage,
+  supportsEnglish,
+} from '@/features/capabilities/capabilities';
+import { ProviderPolicyNotice } from '@/features/capabilities/ProviderPolicyNotice';
 import { formatBytes } from '@/lib/format';
 import { pickAudio, readAudio, sha256, type PickedAudio } from '@/platform/files';
 import { useSession } from '@/providers/SessionProvider';
+import { useCapabilities } from '@/providers/CapabilitiesProvider';
 import { colors, font, radius, spacing } from '@/theme';
 import type { UploadSession } from '@/types/api';
 
@@ -36,6 +48,7 @@ export default function UploadScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { session } = useSession();
+  const { capabilities, loading: capabilitiesLoading } = useCapabilities();
   const [file, setFile] = useState<PickedAudio>();
   const [language, setLanguage] = useState<'auto' | 'en'>('auto');
   const [mode, setMode] = useState<'standard' | 'deep'>('standard');
@@ -44,17 +57,27 @@ export default function UploadScreen() {
   const [error, setError] = useState<Error>();
   const [fileError, setFileError] = useState<string>();
   const [pendingUpload, setPendingUpload] = useState<PendingUpload>();
+  const [providerDataApproved, setProviderDataApproved] = useState(false);
 
   const vocabItems = useMemo(
     () => vocabulary.split(/[,\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
     [vocabulary],
   );
   const isBusy = step !== 'idle';
+  const deepAvailable = canUseDeepIntelligence(capabilities);
+  const remoteGemini = isRemoteGemini(capabilities);
+  const englishAvailable = supportsEnglish(capabilities);
+  const uploadLanguageAvailable = canUploadInConfiguredLanguage(capabilities);
+  const approvalRequired = requiresProviderDataApproval(capabilities);
+  const approvalSatisfied = isProviderDataApprovalSatisfied(capabilities, providerDataApproved);
+  const selectedMode = deepAvailable ? mode : 'standard';
+  const selectedLanguage = resolveUploadLanguage(capabilities, language);
   const quotaRemaining = Math.max(0, (session?.workspace.byte_limit ?? 5 * 1024 ** 3) - (session?.workspace.retained_bytes ?? 0));
 
   const selectFile = (value: PickedAudio) => {
     setError(undefined);
     setPendingUpload(undefined);
+    setProviderDataApproved(false);
     if (value.size === 0) {
       setFile(undefined);
       setFileError('This file is empty. Choose a recording with audio data.');
@@ -84,7 +107,7 @@ export default function UploadScreen() {
   };
 
   const upload = async () => {
-    if (!file || isBusy) return;
+    if (!file || isBusy || capabilitiesLoading || !approvalSatisfied || !uploadLanguageAvailable) return;
     setError(undefined);
     try {
       setStep('hashing');
@@ -105,8 +128,9 @@ export default function UploadScreen() {
         file.name,
         actualSize,
         file.mimeType,
-        language,
-        mode,
+        selectedLanguage,
+        selectedMode,
+        providerDataApproved,
         vocabItems,
       ]);
       setStep('reserving');
@@ -117,9 +141,10 @@ export default function UploadScreen() {
           content_type: file.mimeType,
           size_bytes: actualSize,
           sha256: digest,
-          language,
+          language: selectedLanguage,
           vocabulary_hints: vocabItems,
-          mode,
+          mode: selectedMode,
+          provider_data_approved: providerDataApproved,
         });
       setPendingUpload({ fingerprint, session: uploadSession });
       setStep('uploading');
@@ -147,6 +172,7 @@ export default function UploadScreen() {
   return (
     <AppShell>
       <PageTitle title="Add a recording" subtitle="The original is verified and stored byte-for-byte before any transcript or intelligence work begins." />
+      <ProviderPolicyNotice />
       <View style={[styles.columns, width < 940 && styles.columnsNarrow]}>
         <Card style={styles.uploadCard}>
           {!file ? (
@@ -169,6 +195,7 @@ export default function UploadScreen() {
                 onPress={() => {
                   setFile(undefined);
                   setPendingUpload(undefined);
+                  setProviderDataApproved(false);
                 }}
                 style={styles.removeFile}
               >
@@ -201,13 +228,23 @@ export default function UploadScreen() {
           ) : null}
 
           <View style={styles.formSection}>
-            <Field label="Transcript language" hint="Only English is advertised until other configured routes pass the fixture quality gate.">
+            <Field
+              label="Transcript language"
+              hint={remoteGemini
+                ? 'The Gemini demo route is pinned to English; Auto-detect is unavailable.'
+                : 'Auto-detect remains available for the local fixture route.'}
+            >
               <Segmented<'auto' | 'en'>
-                value={language}
+                value={selectedLanguage}
                 onChange={setLanguage}
                 options={[
-                  { value: 'auto', label: 'Auto-detect', description: 'Route after validation' },
-                  { value: 'en', label: 'English', description: 'Quality-gated route' },
+                  {
+                    value: 'auto',
+                    label: 'Auto-detect',
+                    description: remoteGemini ? 'Unavailable for Gemini' : 'Route after validation',
+                    disabled: remoteGemini,
+                  },
+                  { value: 'en', label: 'English', description: 'Quality-gated route', disabled: !englishAvailable },
                 ]}
               />
             </Field>
@@ -221,21 +258,59 @@ export default function UploadScreen() {
             </Field>
             <Field label="Processing mode">
               <Segmented<'standard' | 'deep'>
-                value={mode}
+                value={selectedMode}
                 onChange={setMode}
                 options={[
                   { value: 'standard', label: 'Standard', description: 'Cost-first, targeted escalation' },
-                  { value: 'deep', label: 'Deep', description: 'Remote adapter required', disabled: true },
+                  {
+                    value: 'deep',
+                    label: 'Deep',
+                    description: deepAvailable ? 'Gemini strong-model synthesis' : capabilitiesLoading ? 'Checking Gemini capability' : 'Configured Gemini strong route required',
+                    disabled: !deepAvailable,
+                  },
                 ]}
               />
             </Field>
           </View>
-          <Notice tone="info" title="Deep is visible but unavailable in this fixture build">
-            Enable it only after a stronger remote route uses the existing admission service with nonzero estimates, reconciliation, approved provider policy, and a passed quality gate. This demo will not label the fixture path as Deep.
-          </Notice>
+          {deepAvailable ? (
+            <Notice tone="info" title="Gemini Deep is available">
+              Deep requests the configured strong synthesis route under a separate recording budget. Speech and canonical citation validation remain unchanged.
+            </Notice>
+          ) : (
+            <Notice tone="info" title="Deep is unavailable">
+              The client enables Deep only when the API confirms an active Gemini strong route. Standard and fixture-safe processing remain available.
+            </Notice>
+          )}
+          {!uploadLanguageAvailable ? (
+            <Notice tone="error" title="English transcription is unavailable">
+              The Gemini demo accepts uploads only after the API advertises an English transcription route.
+            </Notice>
+          ) : null}
+          {approvalRequired ? (
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: providerDataApproved, disabled: isBusy }}
+              disabled={isBusy}
+              onPress={() => setProviderDataApproved((current) => !current)}
+              style={({ pressed }) => [
+                styles.approvalRow,
+                providerDataApproved && styles.approvalRowChecked,
+                pressed && styles.approvalRowPressed,
+              ]}
+            >
+              <View style={[styles.approvalBox, providerDataApproved && styles.approvalBoxChecked]}>
+                {providerDataApproved ? <MaterialCommunityIcons name="check" size={15} color={colors.white} /> : null}
+              </View>
+              <Text style={styles.approvalText}>
+                {isSyntheticApprovedOnly(capabilities)
+                  ? 'I confirm this audio is synthetic or explicitly approved and contains no private, personal, confidential, or production data.'
+                  : `I confirm this audio is approved for processing under the active “${capabilities.data_policy}” provider policy.`}
+              </Text>
+            </Pressable>
+          ) : null}
           <View style={styles.submitRow}>
             <Button variant="ghost" disabled={isBusy} onPress={() => router.back()}>Cancel</Button>
-            <Button size="lg" icon="tray-arrow-up" disabled={!file} loading={isBusy} onPress={upload}>
+            <Button size="lg" icon="tray-arrow-up" disabled={!file || capabilitiesLoading || !approvalSatisfied || !uploadLanguageAvailable} loading={isBusy} onPress={upload}>
               Verify & upload
             </Button>
           </View>
@@ -298,6 +373,12 @@ const styles = StyleSheet.create({
   discreteStepActive: { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', height: 18 },
   busyNote: { color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
   formSection: { gap: spacing.xl },
+  approvalRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.canvas },
+  approvalRowChecked: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  approvalRowPressed: { opacity: 0.8 },
+  approvalBox: { width: 22, height: 22, borderWidth: 2, borderColor: colors.borderStrong, borderRadius: 6, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  approvalBoxChecked: { borderColor: colors.green, backgroundColor: colors.green },
+  approvalText: { flex: 1, color: colors.ink, fontSize: 12, lineHeight: 19 },
   submitRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   sidebar: { width: '100%', maxWidth: 330, gap: spacing.lg },
   guardrailCard: { gap: spacing.lg, shadowOpacity: 0 },

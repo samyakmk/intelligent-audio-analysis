@@ -18,7 +18,7 @@ from app.config import Settings
 from app.models import Base
 
 API_ROOT = Path(__file__).resolve().parents[1]
-BASELINE_REVISION = "c14c172f08b5"
+HEAD_REVISION = "d9a2f18b6c41"
 
 
 def _config() -> Config:
@@ -47,8 +47,62 @@ def test_fresh_sqlite_upgrade_matches_current_metadata(tmp_path: Path, monkeypat
             assert compare_metadata(context, Base.metadata) == []
             assert (
                 connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar_one()
-                == BASELINE_REVISION
+                == HEAD_REVISION
             )
+    finally:
+        engine.dispose()
+
+
+def test_approval_migration_backfills_only_checked_in_fixture_rows(
+    tmp_path: Path, monkeypatch
+) -> None:
+    database_path = tmp_path / "approval-backfill.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database_path}")
+    config = _config()
+    command.upgrade(config, "c14c172f08b5")
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    insert_sql = """
+        INSERT INTO recording (
+            id, workspace_id, created_by, display_name, original_filename,
+            content_type, requested_language, requested_mode, vocabulary_hints,
+            tags, summary_style, source_kind, status, stage, original_ready,
+            transcript_ready, intelligence_ready, indexed_ready,
+            deletion_generation, transcript_version, intelligence_version,
+            etag_version, cancel_requested, created_at, updated_at,
+            retention_expires_at
+        ) VALUES (
+            ?, 'workspace-alpha', 'alice', ?, ?, 'audio/wav', 'en', 'standard',
+            '[]', '[]', 'standard', ?, 'READY', 'ready', 1, 1, 1, 1,
+            0, 1, 1, 1, 0, '2026-09-07 00:00:00', '2026-09-07 00:00:00',
+            '2026-10-07 00:00:00'
+        )
+    """
+    try:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                insert_sql,
+                ("fixture-row", "Fixture", "fixture.wav", "approved_fixture"),
+            )
+            connection.exec_driver_sql(
+                insert_sql,
+                ("upload-row", "Upload", "upload.wav", "upload"),
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(f"sqlite:///{database_path}")
+    try:
+        with engine.connect() as connection:
+            rows = dict(
+                connection.exec_driver_sql(
+                    "SELECT id, provider_data_approved FROM recording ORDER BY id"
+                ).all()
+            )
+            assert rows == {"fixture-row": 1, "upload-row": 0}
+            assert "_alembic_tmp_recording" not in inspect(connection).get_table_names()
     finally:
         engine.dispose()
 
@@ -73,7 +127,7 @@ def test_postgresql_offline_sql_includes_pgvector_and_budget_table(monkeypatch) 
 def test_single_baseline_head_and_no_dotenv_loader() -> None:
     config = _config()
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [BASELINE_REVISION]
+    assert scripts.get_heads() == [HEAD_REVISION]
     env_source = (API_ROOT / "alembic" / "env.py").read_text(encoding="utf-8").casefold()
     assert "dotenv" not in env_source
 

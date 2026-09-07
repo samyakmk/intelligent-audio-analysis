@@ -45,7 +45,10 @@ from .models import (
     utcnow,
 )
 from .providers import (
+    AskRequest,
     LLMAdapter,
+    ProviderBilledFailure,
+    ProviderDataPolicyDenied,
     ProviderUnavailable,
     SpeechAdapter,
     SpeechRequest,
@@ -73,7 +76,6 @@ class BudgetReservationUnavailable(RuntimeError):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
-
 
 
 def retry_sealed_quarantine_cleanup(
@@ -254,6 +256,7 @@ def recording_payload(recording: Recording) -> dict[str, Any]:
         "content_type": recording.content_type,
         "language": recording.requested_language,
         "mode": recording.requested_mode,
+        "provider_data_approved": recording.provider_data_approved,
         "tags": recording.tags or [],
         "folder": recording.folder,
         "summary_style": recording.summary_style,
@@ -350,6 +353,7 @@ def seed_demo_recordings(
                 original_filename="pocket-demo-fixture.wav",
                 content_type=probe.content_type,
                 requested_language="en",
+                provider_data_approved=True,
                 source_kind="approved_fixture",
                 status="SEALED",
                 stage="sealed",
@@ -620,6 +624,14 @@ def process_run(
             return
         try:
             assert_publishable(recording, run.deletion_generation)
+            if (
+                settings.provider_mode == "gemini"
+                and settings.allow_remote_provider_calls
+                and not recording.provider_data_approved
+            ):
+                raise SpeechUnconfigured(
+                    "Remote provider processing requires persisted data-policy approval."
+                )
             run.status = "processing"
             run.started_at = utcnow()
             recording.status = "PROCESSING"
@@ -663,31 +675,41 @@ def process_run(
                 if media is None:
                     raise RuntimeError("sealed recording is missing immutable original")
                 speech_attempt_id = f"speech:{run.id}"
+                audio_bytes = blob_store.get(media.blob_key)
+                speech_request = SpeechRequest(
+                    recording_id=recording.id,
+                    audio_sha256=media.sha256,
+                    audio_reference=media.id,
+                    original_time_offset_ms=0,
+                    language=recording.requested_language,
+                    vocabulary_hints=tuple(recording.vocabulary_hints or []),
+                    require_diarization=True,
+                    require_timestamps=True,
+                    budget_usd=settings.recording_cost_ceiling_usd,
+                    request_id=speech_attempt_id,
+                    audio_bytes=audio_bytes,
+                    content_type=media.content_type,
+                    duration_ms=recording.duration_ms,
+                )
+                estimate_speech = getattr(speech, "estimate_transcription_reservation", None)
+                speech_reservation = (
+                    estimate_speech(speech_request) if callable(estimate_speech) else 0.0
+                )
                 reserve_budget(
                     db,
                     attempt_id=speech_attempt_id,
                     workspace_id=recording.workspace_id,
                     recording_id=recording.id,
                     stage="speech",
-                    amount_usd=0.0,
+                    amount_usd=speech_reservation,
                     per_request_cap_usd=settings.recording_cost_ceiling_usd,
+                    recording_cap_usd=settings.recording_cost_ceiling_usd,
                 )
+                mark_budget_dispatched(db, attempt_id=speech_attempt_id)
                 db.commit()  # Lease heartbeat; do not hold row locks across provider work.
                 dispatched_attempts.add(speech_attempt_id)
-                result = speech.transcribe(
-                    SpeechRequest(
-                        recording_id=recording.id,
-                        audio_sha256=media.sha256,
-                        audio_reference=media.id,
-                        original_time_offset_ms=0,
-                        language=recording.requested_language,
-                        vocabulary_hints=tuple(recording.vocabulary_hints or []),
-                        require_diarization=True,
-                        require_timestamps=True,
-                        budget_usd=settings.recording_cost_ceiling_usd,
-                        request_id=speech_attempt_id,
-                    )
-                )
+                result = speech.transcribe(speech_request)
+                result.provenance["provider_data_approved"] = recording.provider_data_approved
                 recording = _refresh_publishable(
                     db,
                     recording.id,
@@ -708,10 +730,14 @@ def process_run(
                     model_alias=result.model_alias,
                     resolved_model=result.resolved_model,
                     usage=result.usage,
-                    estimated=0.0,
+                    estimated=_provider_actual_cost(result.provenance, result.usage),
                     provenance=result.provenance,
                 )
-                commit_budget(db, attempt_id=speech_attempt_id, actual_usd=0.0)
+                commit_budget(
+                    db,
+                    attempt_id=speech_attempt_id,
+                    actual_usd=_provider_actual_cost(result.provenance, result.usage),
+                )
                 recording.transcript_ready = True
                 recording.transcript_version = transcript.version
                 set_stage(db, recording, run, "transcribing", "complete")
@@ -764,15 +790,31 @@ def process_run(
                 intelligence_source_id = transcript.id
                 intelligence_source_version = transcript.version
                 intelligence_attempt_id = f"intelligence:{run.id}"
+                estimate_intelligence = getattr(
+                    llm, "estimate_intelligence_reservation", None
+                )
+                intelligence_budget = (
+                    estimate_intelligence(
+                        recording_id=recording.id,
+                        transcript_version=transcript.version,
+                        segments=segment_values,
+                        budget_usd=settings.recording_cost_ceiling_usd,
+                        deep=recording.requested_mode == "deep",
+                    )
+                    if callable(estimate_intelligence)
+                    else 0.0
+                )
                 reserve_budget(
                     db,
                     attempt_id=intelligence_attempt_id,
                     workspace_id=recording.workspace_id,
                     recording_id=recording.id,
                     stage="intelligence",
-                    amount_usd=0.0,
+                    amount_usd=intelligence_budget,
                     per_request_cap_usd=settings.recording_cost_ceiling_usd,
+                    recording_cap_usd=settings.recording_cost_ceiling_usd,
                 )
+                mark_budget_dispatched(db, attempt_id=intelligence_attempt_id)
                 db.commit()  # Lease heartbeat; do not hold row locks across provider work.
                 dispatched_attempts.add(intelligence_attempt_id)
                 intelligence_payload, provenance = llm.extract_intelligence(
@@ -780,7 +822,8 @@ def process_run(
                     transcript_version=transcript.version,
                     segments=segment_values,
                     request_id=intelligence_attempt_id,
-                    budget_usd=settings.recording_cost_ceiling_usd,
+                    budget_usd=intelligence_budget,
+                    deep=recording.requested_mode == "deep",
                 )
                 recording = _refresh_publishable(
                     db,
@@ -820,10 +863,14 @@ def process_run(
                     model_alias=provenance["model_alias"],
                     resolved_model=provenance["resolved_model"],
                     usage=provenance["usage"],
-                    estimated=0.0,
+                    estimated=_provider_actual_cost(provenance, provenance.get("usage", {})),
                     provenance=provenance,
                 )
-                commit_budget(db, attempt_id=intelligence_attempt_id, actual_usd=0.0)
+                commit_budget(
+                    db,
+                    attempt_id=intelligence_attempt_id,
+                    actual_usd=_provider_actual_cost(provenance, provenance.get("usage", {})),
+                )
                 recording.intelligence_ready = True
                 recording.intelligence_version = intelligence.version
                 set_stage(db, recording, run, "extracting_intelligence", "complete")
@@ -926,9 +973,7 @@ def process_run(
             )
             if cancelled.rowcount == 1:
                 recording = db.scalar(
-                    select(Recording)
-                    .where(Recording.id == run.recording_id)
-                    .with_for_update()
+                    select(Recording).where(Recording.id == run.recording_id).with_for_update()
                 )
                 if (
                     recording is not None
@@ -951,6 +996,14 @@ def process_run(
             db.expire_all()
             recording = db.get(Recording, run.recording_id)
             run = db.get(ProcessingRun, run_id)
+            if isinstance(exc, ProviderBilledFailure) and recording is not None:
+                _ledger_billed_failure(
+                    db,
+                    exc,
+                    workspace_id=recording.workspace_id,
+                    recording_id=recording.id,
+                    stage=("speech" if exc.attempt_id.startswith("speech:") else "intelligence"),
+                )
             settle_run_reservations(
                 db,
                 run_id,
@@ -1018,10 +1071,19 @@ def _publish_transcript(
         recording_id=recording.id,
         workspace_id=recording.workspace_id,
         version=version,
-        source="approved_fixture_sidecar",
+        source=(
+            "approved_fixture_sidecar"
+            if result.provenance.get("mock") is True
+            else str(result.provenance.get("source") or "provider_transcription")
+        ),
         provider=result.provider,
         model=result.resolved_model,
-        prompt_version="fixture-sidecar.v1",
+        pipeline_version=str(
+            result.provenance.get("pipeline_version") or "provider-speech-pipeline.v1"
+        ),
+        schema_version=str(result.provenance.get("schema_version") or "CanonicalTranscript.v1"),
+        prompt_version=str(result.provenance.get("prompt_version") or "unknown"),
+        policy_version=str(result.provenance.get("policy_version") or "demo-policy.v1"),
     )
     db.execute(
         update(TranscriptVersion)
@@ -1333,6 +1395,7 @@ def reserve_budget(
     per_request_cap_usd: float,
     recording_id: str | None = None,
     ask_session_id: str | None = None,
+    recording_cap_usd: float | None = None,
 ) -> BudgetReservation:
     """Atomically admit one provider attempt and reserve its worst-case spend.
 
@@ -1342,7 +1405,11 @@ def reserve_budget(
 
     if not attempt_id or len(attempt_id) > 160:
         raise ValueError("attempt_id must be 1-160 characters")
-    if amount_usd < 0 or per_request_cap_usd < 0:
+    if (
+        amount_usd < 0
+        or per_request_cap_usd < 0
+        or (recording_cap_usd is not None and recording_cap_usd < 0)
+    ):
         raise ValueError("budget amounts cannot be negative")
 
     existing = db.scalar(
@@ -1401,11 +1468,14 @@ def reserve_budget(
     reservation_rows = db.scalars(
         select(BudgetReservation).where(
             BudgetReservation.workspace_id == workspace_id,
-            BudgetReservation.status.in_([
-                "reserved",
-                "committed",
-                "reconciliation_pending",
-            ]),
+            BudgetReservation.status.in_(
+                [
+                    "reserved",
+                    "dispatching",
+                    "committed",
+                    "reconciliation_pending",
+                ]
+            ),
             BudgetReservation.created_at >= month_start,
             BudgetReservation.created_at < month_end,
         )
@@ -1420,11 +1490,7 @@ def reserve_budget(
         ).all()
     )
     outstanding = sum(
-        (
-            float(item.committed_usd or 0)
-            if item.status == "committed"
-            else item.reserved_usd
-        )
+        (float(item.committed_usd or 0) if item.status == "committed" else item.reserved_usd)
         for item in reservation_rows
         if item.attempt_id not in ledger_attempts
     )
@@ -1433,6 +1499,44 @@ def reserve_budget(
             "workspace_monthly_budget_exceeded",
             "Provider attempt would exceed the workspace monthly spend ceiling.",
         )
+
+    if recording_id is not None and recording_cap_usd is not None:
+        recording_incurred = float(
+            db.scalar(
+                select(func.coalesce(func.sum(CostEvent.estimated_cost_usd), 0)).where(
+                    CostEvent.recording_id == recording_id
+                )
+            )
+            or 0
+        )
+        recording_ledger_attempts = set(
+            db.scalars(
+                select(CostEvent.attempt_id).where(CostEvent.recording_id == recording_id)
+            ).all()
+        )
+        recording_reservations = db.scalars(
+            select(BudgetReservation).where(
+                BudgetReservation.recording_id == recording_id,
+                BudgetReservation.status.in_(
+                    [
+                        "reserved",
+                        "dispatching",
+                        "committed",
+                        "reconciliation_pending",
+                    ]
+                ),
+            )
+        ).all()
+        recording_outstanding = sum(
+            (float(item.committed_usd or 0) if item.status == "committed" else item.reserved_usd)
+            for item in recording_reservations
+            if item.attempt_id not in recording_ledger_attempts
+        )
+        if recording_incurred + recording_outstanding + amount_usd > recording_cap_usd + 1e-9:
+            raise BudgetExceeded(
+                "recording_budget_exceeded",
+                "Provider attempt would exceed the recording spend ceiling.",
+            )
 
     reservation = BudgetReservation(
         id=str(uuid.uuid4()),
@@ -1493,6 +1597,11 @@ def _readmit_safe_reservation_replay(
             "budget_reconciliation_pending",
             "The prior provider outcome is ambiguous and must be reconciled before retrying.",
         )
+    if reservation.status == "dispatching":
+        raise BudgetReservationUnavailable(
+            "budget_dispatch_outcome_unknown",
+            "The prior provider call may already have been dispatched and cannot be replayed.",
+        )
     if reservation.status == "released":
         if reservation.reserved_usd > 0:
             raise BudgetReservationUnavailable(
@@ -1503,6 +1612,32 @@ def _readmit_safe_reservation_replay(
         reservation.committed_usd = None
         reservation.release_reason = None
         db.flush()
+    return reservation
+
+
+def mark_budget_dispatched(db: Session, *, attempt_id: str) -> BudgetReservation:
+    """Persist a non-replayable fence immediately before provider dispatch.
+
+    If a process exits after this transaction commits, recovery treats the
+    provider outcome as ambiguous instead of repeating a potentially billable
+    call with the same business attempt identity.
+    """
+
+    reservation = db.scalar(
+        select(BudgetReservation)
+        .where(BudgetReservation.attempt_id == attempt_id)
+        .with_for_update()
+    )
+    if reservation is None:
+        raise ValueError("budget reservation does not exist")
+    if reservation.status != "reserved":
+        raise BudgetReservationUnavailable(
+            "budget_dispatch_not_admitted",
+            "The provider attempt is not in an admissible pre-dispatch state.",
+        )
+    reservation.status = "dispatching"
+    reservation.release_reason = None
+    db.flush()
     return reservation
 
 
@@ -1525,8 +1660,8 @@ def commit_budget(db: Session, *, attempt_id: str, actual_usd: float) -> BudgetR
         if abs(float(reservation.committed_usd or 0) - actual_usd) > 1e-9:
             raise ValueError("budget reservation was committed with a different amount")
         return reservation
-    if reservation.status == "released":
-        raise ValueError("released budget reservation cannot be committed")
+    if reservation.status not in {"reserved", "dispatching"}:
+        raise ValueError(f"{reservation.status} budget reservation cannot be committed")
     reservation.status = "committed"
     reservation.committed_usd = actual_usd
     reservation.release_reason = None
@@ -1597,9 +1732,10 @@ def settle_interrupted_budget(
         .where(BudgetReservation.attempt_id == attempt_id)
         .with_for_update()
     )
-    if reservation is None or reservation.status != "reserved":
+    if reservation is None or reservation.status not in {"reserved", "dispatching"}:
         return
-    if not provider_dispatched or reservation.reserved_usd <= 0:
+    durably_dispatched = reservation.status == "dispatching"
+    if not (provider_dispatched or durably_dispatched) or reservation.reserved_usd <= 0:
         release_budget(db, attempt_id=attempt_id, reason=reason)
     else:
         reservation.status = "reconciliation_pending"
@@ -1635,13 +1771,60 @@ def _cost_once(
             provider=provider,
             model_alias=model_alias,
             resolved_model=resolved_model,
-            price_catalog_version="mock-zero-cost.v1",
+            price_catalog_version=str(
+                provenance.get("price_catalog_version") or "mock-zero-cost.v1"
+            ),
             usage=usage,
             estimated_cost_usd=estimated,
-            reconciled_cost_usd=estimated,
+            reconciled_cost_usd=estimated if provenance.get("mock") is True else None,
             cache_reuse=False,
-            provenance=provenance,
+            provenance={
+                **provenance,
+                "usage_metered": provenance.get("mock") is not True,
+                "invoice_reconciled": provenance.get("mock") is True,
+            },
         )
+    )
+
+
+def _provider_actual_cost(provenance: dict[str, Any], usage: dict[str, Any] | None = None) -> float:
+    value = provenance.get("estimated_cost_usd")
+    if value is None and usage is not None:
+        value = usage.get("estimated_cost_usd")
+    if value is None and provenance.get("mock") is True:
+        return 0.0
+    if isinstance(value, bool) or not isinstance(value, int | float) or value < 0:
+        raise ProviderUnavailable("Provider response omitted trustworthy cost attribution")
+    return float(value)
+
+
+def _ledger_billed_failure(
+    db: Session,
+    failure: ProviderBilledFailure,
+    *,
+    workspace_id: str,
+    recording_id: str | None,
+    stage: str,
+    ask_session_id: str | None = None,
+) -> None:
+    _cost_once(
+        db,
+        attempt_id=failure.attempt_id,
+        workspace_id=workspace_id,
+        recording_id=recording_id,
+        ask_session_id=ask_session_id,
+        stage=stage,
+        provider=failure.provider,
+        model_alias=failure.model_alias,
+        resolved_model=failure.resolved_model,
+        usage=failure.usage,
+        estimated=failure.estimated_cost_usd,
+        provenance=failure.provenance,
+    )
+    commit_budget(
+        db,
+        attempt_id=failure.attempt_id,
+        actual_usd=failure.estimated_cost_usd,
     )
 
 
@@ -2154,6 +2337,8 @@ def regenerate_intelligence(
     summary_style: str,
     request_id: str,
     budget_usd: float,
+    *,
+    deep: bool = False,
 ) -> IntelligenceVersion:
     transcript = db.scalar(
         select(TranscriptVersion).where(
@@ -2183,15 +2368,29 @@ def regenerate_intelligence(
     expected_intelligence_id = prior.id if prior is not None else None
     expected_intelligence_version = recording.intelligence_version
     intelligence: IntelligenceVersion | None = None
+    estimate_intelligence = getattr(llm, "estimate_intelligence_reservation", None)
+    regeneration_reservation = (
+        estimate_intelligence(
+            recording_id=recording.id,
+            transcript_version=transcript.version,
+            segments=values,
+            budget_usd=budget_usd,
+            deep=deep,
+        )
+        if callable(estimate_intelligence)
+        else 0.0
+    )
     reserve_budget(
         db,
         attempt_id=request_id,
         workspace_id=recording.workspace_id,
         recording_id=recording.id,
         stage="regenerate_intelligence",
-        amount_usd=0.0,
+        amount_usd=regeneration_reservation,
         per_request_cap_usd=budget_usd,
+        recording_cap_usd=budget_usd,
     )
+    mark_budget_dispatched(db, attempt_id=request_id)
     db.commit()
     provider_dispatched = False
     try:
@@ -2201,9 +2400,31 @@ def regenerate_intelligence(
             transcript_version=transcript.version,
             segments=values,
             request_id=request_id,
-            budget_usd=budget_usd,
+            budget_usd=regeneration_reservation,
+            deep=deep,
         )
-    except ProviderUnavailable:
+    except ProviderUnavailable as failure:
+        if isinstance(failure, ProviderBilledFailure):
+            db.rollback()
+            _ledger_billed_failure(
+                db,
+                failure,
+                workspace_id=recording.workspace_id,
+                recording_id=recording.id,
+                stage="regenerate_intelligence",
+            )
+            db.commit()
+            raise
+        if regeneration_reservation > 0:
+            db.rollback()
+            settle_interrupted_budget(
+                db,
+                attempt_id=request_id,
+                provider_dispatched=provider_dispatched,
+                reason="regeneration_provider_unavailable",
+            )
+            db.commit()
+            raise
         if prior is None:
             payload, provenance = _safe_extractive_intelligence_values(db, recording, transcript)
         else:
@@ -2277,6 +2498,7 @@ def regenerate_intelligence(
             payload["summary"]["short"] = tasks
     provenance = dict(provenance)
     provenance["summary_style"] = summary_style
+    provenance["deep_requested"] = deep
     if intelligence is None:
         intelligence = _publish_intelligence(db, recording, transcript.version, payload, provenance)
     else:
@@ -2295,10 +2517,14 @@ def regenerate_intelligence(
         model_alias=provenance.get("model_alias", "llm.none"),
         resolved_model=provenance.get("resolved_model", "deterministic-existing-evidence-v1"),
         usage=provenance.get("usage", {"input_tokens": 0, "output_tokens": 0}),
-        estimated=0.0,
+        estimated=_provider_actual_cost(provenance),
         provenance=provenance,
     )
-    commit_budget(db, attempt_id=request_id, actual_usd=0.0)
+    commit_budget(
+        db,
+        attempt_id=request_id,
+        actual_usd=_provider_actual_cost(provenance),
+    )
     recording.intelligence_version = intelligence.version
     recording.intelligence_ready = True
     recording.summary_style = summary_style
@@ -2418,23 +2644,17 @@ def answer_question(
     recording_ids: list[str],
     selection_segment_ids: list[str] | None = None,
     budget_usd: float = 0.10,
+    llm: LLMAdapter | None = None,
+    deep: bool = False,
 ) -> AskMessage:
-    unsupported_relation = any(
-        term in normalize_text(question) for term in ("customer", "lunch", "ordered")
-    )
     structured = None
-    if not unsupported_relation and not selection_segment_ids:
+    if not selection_segment_ids:
         structured = _structured_answer(
             db, workspace_id=workspace_id, question=question, recording_ids=recording_ids
         )
     if structured is not None:
         answer, citations, strategy = structured
         results = [{"citation": item} for item in citations]
-    elif unsupported_relation:
-        results = []
-        answer = ""
-        citations = []
-        strategy = "abstain_unsupported_relation"
     else:
         results = search_evidence(
             db,
@@ -2448,8 +2668,144 @@ def answer_question(
         citations = []
         strategy = "deterministic_lexical_extractive"
     message_id = str(uuid.uuid4())
+    ask_attempt_id = f"ask:{message_id}"
+    provider_result = None
+    reservation_amount = 0.0
+    provider_dispatched = False
+    if results and structured is None and llm is not None:
+        ask_request = AskRequest(
+            question=question,
+            evidence=results,
+            request_id=ask_attempt_id,
+            budget_usd=budget_usd,
+            deep=deep,
+        )
+        estimate_ask = getattr(llm, "estimate_ask_reservation", None)
+        reservation_amount = estimate_ask(ask_request) if callable(estimate_ask) else 0.0
+        if reservation_amount == 0:
+            try:
+                provider_result = llm.answer(ask_request)
+            except ProviderUnavailable:
+                # A zero-cost local adapter may decline a question; the
+                # conservative extractive fallback below remains available.
+                provider_result = None
+        if reservation_amount > 0:
+            retrieved_recording_ids = {
+                str(item["citation"]["recording_id"])
+                for item in results
+                if isinstance(item.get("citation"), dict)
+                and item["citation"].get("recording_id")
+            }
+            source_rows = db.scalars(
+                select(Recording).where(
+                    Recording.workspace_id == workspace_id,
+                    Recording.deleted_at.is_(None),
+                    Recording.indexed_ready.is_(True),
+                    Recording.id.in_(retrieved_recording_ids),
+                )
+            ).all()
+            if {item.id for item in source_rows} != retrieved_recording_ids or any(
+                not item.provider_data_approved for item in source_rows
+            ):
+                raise ProviderDataPolicyDenied(
+                    "Remote Ask requires persisted data-policy approval for every evidence source."
+                )
+            source_snapshot = {
+                item.id: (
+                    item.deletion_generation,
+                    item.transcript_version,
+                    item.intelligence_version,
+                    item.provider_data_approved,
+                )
+                for item in source_rows
+            }
+            reserve_budget(
+                db,
+                attempt_id=ask_attempt_id,
+                workspace_id=workspace_id,
+                ask_session_id=ask_session_id,
+                stage="ask",
+                amount_usd=reservation_amount,
+                per_request_cap_usd=budget_usd,
+            )
+            mark_budget_dispatched(db, attempt_id=ask_attempt_id)
+            db.commit()
+            try:
+                provider_dispatched = True
+                provider_result = llm.answer(
+                    AskRequest(
+                        question=question,
+                        evidence=results,
+                        request_id=ask_attempt_id,
+                        budget_usd=reservation_amount,
+                        deep=deep,
+                    )
+                )
+            except Exception as failure:
+                db.rollback()
+                if isinstance(failure, ProviderBilledFailure):
+                    _ledger_billed_failure(
+                        db,
+                        failure,
+                        workspace_id=workspace_id,
+                        recording_id=None,
+                        ask_session_id=ask_session_id,
+                        stage="ask",
+                    )
+                else:
+                    settle_interrupted_budget(
+                        db,
+                        attempt_id=ask_attempt_id,
+                        provider_dispatched=provider_dispatched,
+                        reason="ask_provider_exception",
+                    )
+                db.commit()
+                raise
+            current_rows = db.scalars(
+                select(Recording)
+                .where(
+                    Recording.workspace_id == workspace_id,
+                    Recording.deleted_at.is_(None),
+                    Recording.indexed_ready.is_(True),
+                    Recording.id.in_(retrieved_recording_ids),
+                )
+                .with_for_update()
+            ).all()
+            current_snapshot = {
+                item.id: (
+                    item.deletion_generation,
+                    item.transcript_version,
+                    item.intelligence_version,
+                    item.provider_data_approved,
+                )
+                for item in current_rows
+            }
+            if current_snapshot != source_snapshot:
+                actual = _provider_actual_cost(provider_result.provenance)
+                _cost_once(
+                    db,
+                    attempt_id=ask_attempt_id,
+                    workspace_id=workspace_id,
+                    recording_id=None,
+                    ask_session_id=ask_session_id,
+                    stage="ask",
+                    provider=provider_result.provenance.get("provider", "google.gemini"),
+                    model_alias=provider_result.provenance.get("model_alias", "llm.unknown"),
+                    resolved_model=provider_result.provenance.get("resolved_model", "unknown"),
+                    usage=provider_result.provenance.get("usage", {}),
+                    estimated=actual,
+                    provenance={**provider_result.provenance, "publication": "source_changed"},
+                )
+                commit_budget(db, attempt_id=ask_attempt_id, actual_usd=actual)
+                db.commit()
+                raise StaleGeneration("Ask evidence changed while the provider was answering")
     if structured is not None:
         abstained = False
+    elif provider_result is not None:
+        citations = provider_result.citations
+        answer = provider_result.answer
+        abstained = provider_result.abstained
+        strategy = "gemini_grounded_evidence"
     elif results:
         citations = [item["citation"] for item in results]
         quotes = [f"“{item['snippet']}”" for item in results]
@@ -2459,12 +2815,17 @@ def answer_question(
         citations = []
         answer = "I don't have enough accessible evidence in this scope to answer that question."
         abstained = True
-    provenance = {
-        "mock": True,
-        "strategy": strategy,
-        "llm_called": False,
-        "grounding_validation": "passed" if results else "abstained_no_evidence",
-    }
+    provenance = (
+        {**provider_result.provenance, "strategy": strategy}
+        if provider_result is not None
+        else {
+            "mock": True,
+            "strategy": strategy,
+            "llm_called": False,
+            "deep_requested": deep,
+            "grounding_validation": "passed" if results else "abstained_no_evidence",
+        }
+    )
     message = AskMessage(
         id=message_id,
         ask_session_id=ask_session_id,
@@ -2476,16 +2837,17 @@ def answer_question(
         provenance=provenance,
     )
     db.add(message)
-    ask_attempt_id = f"ask:{message_id}"
-    reserve_budget(
-        db,
-        attempt_id=ask_attempt_id,
-        workspace_id=workspace_id,
-        ask_session_id=ask_session_id,
-        stage="ask",
-        amount_usd=0.0,
-        per_request_cap_usd=budget_usd,
-    )
+    if reservation_amount == 0:
+        reserve_budget(
+            db,
+            attempt_id=ask_attempt_id,
+            workspace_id=workspace_id,
+            ask_session_id=ask_session_id,
+            stage="ask",
+            amount_usd=0.0,
+            per_request_cap_usd=budget_usd,
+        )
+    actual_cost = _provider_actual_cost(provenance)
     _cost_once(
         db,
         attempt_id=ask_attempt_id,
@@ -2493,14 +2855,17 @@ def answer_question(
         recording_id=None,
         ask_session_id=ask_session_id,
         stage="ask",
-        provider="mock.local",
-        model_alias="llm.none",
-        resolved_model="deterministic-lexical-extractive-v1",
-        usage={"input_tokens": 0, "output_tokens": 0, "retrieved_units": len(results)},
-        estimated=0.0,
+        provider=provenance.get("provider", "mock.local"),
+        model_alias=provenance.get("model_alias", "llm.none"),
+        resolved_model=provenance.get("resolved_model", "deterministic-lexical-extractive-v1"),
+        usage={
+            **provenance.get("usage", {"input_tokens": 0, "output_tokens": 0}),
+            "retrieved_units": len(results),
+        },
+        estimated=actual_cost,
         provenance=provenance,
     )
-    commit_budget(db, attempt_id=ask_attempt_id, actual_usd=0.0)
+    commit_budget(db, attempt_id=ask_attempt_id, actual_usd=actual_cost)
     return message
 
 
@@ -2744,9 +3109,7 @@ def export_content(
     )
     if recording_ids:
         recordings_query = recordings_query.where(Recording.id.in_(recording_ids))
-    recordings = db.scalars(
-        recordings_query.order_by(Recording.created_at).with_for_update()
-    ).all()
+    recordings = db.scalars(recordings_query.order_by(Recording.created_at).with_for_update()).all()
     if include == "tasks":
         task_query = (
             select(ActionItem)

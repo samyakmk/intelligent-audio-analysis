@@ -52,11 +52,11 @@ export default function CostLabScreen() {
         </View>
       </Card>
 
-      {resource.loading ? <Card><LoadingState label="Reconciling cost view…" /></Card> : resource.error ? <Card><ErrorState error={resource.error} onRetry={resource.reload} /></Card> : !costs ? null : (
+      {resource.loading ? <Card><LoadingState label="Loading cost view…" /></Card> : resource.error ? <Card><ErrorState error={resource.error} onRetry={resource.reload} /></Card> : !costs ? null : (
         <>
           <View style={styles.metrics}>
             <MetricCard icon="cash-clock" label="Estimated incurred" value={formatMoney(costs.estimated_incurred_usd)} hint="Before invoice reconciliation" tone="coral" />
-            <MetricCard icon="check-decagram-outline" label="Reconciled" value={formatMoney(costs.reconciled_usd)} hint="Confirmed provider usage" tone="green" />
+            <MetricCard icon="check-decagram-outline" label="Reconciled" value={formatMoney(costs.reconciled_usd)} hint="Invoice-confirmed spend" tone="green" />
             <MetricCard icon="chart-waterfall" label="Modeled delta" value={formatMoney(costs.modeled_delta_usd)} hint="Baseline minus optimized" tone="blue" />
             <Card style={styles.metricCard}>
               <View style={uiStyles.rowBetween}><Text style={styles.metricLabel}>Budget</Text><Text style={styles.metricValue}>{formatMoney(costs.budget_usd, 0)}</Text></View>
@@ -174,7 +174,7 @@ function CostRow({ event, wide, showUnits }: { event: CostEvent; wide: boolean; 
       {showUnits ? <Text numberOfLines={2} style={[styles.units, styles.unitsColumn]}>{event.billed_units}</Text> : null}
       <View style={styles.costColumn}>
         <Text style={styles.costText}>{formatMoney(event.reconciled_cost_usd ?? event.estimated_cost_usd)}</Text>
-        <Text style={styles.costState}>{event.reconciled_cost_usd === undefined ? 'estimated' : 'reconciled'}</Text>
+        <Text style={styles.costState}>{event.reconciled_cost_usd == null ? 'estimated' : 'reconciled'}</Text>
       </View>
     </View>
   );

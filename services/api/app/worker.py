@@ -18,7 +18,7 @@ from .lifecycle import (
     sweep_expired_recordings,
     sweep_expired_uploads,
 )
-from .providers import MockFixtureLLMAdapter, MockFixtureSpeechAdapter
+from .providers import create_provider_adapters
 from .seed import seed_reference_data
 
 
@@ -34,8 +34,7 @@ def run_worker(*, once: bool = False, poll_seconds: float = 1.0) -> None:
             monthly_spend_limit_usd=settings.workspace_monthly_cost_ceiling_usd,
         )
     blob_store = create_blob_store(settings)
-    speech = MockFixtureSpeechAdapter(settings.fixture_root)
-    llm = MockFixtureLLMAdapter(settings.fixture_root)
+    speech, llm = create_provider_adapters(settings)
     lease_owner = f"worker:{uuid.uuid4()}"
     stopping = False
 

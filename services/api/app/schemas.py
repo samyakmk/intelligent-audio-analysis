@@ -25,6 +25,7 @@ class UploadSessionCreate(StrictModel):
     language: str = Field(default="en", min_length=2, max_length=32)
     vocabulary_hints: list[str] = Field(default_factory=list, max_length=100)
     mode: Literal["standard", "deep"] = "standard"
+    provider_data_approved: bool = False
 
     @field_validator("sha256")
     @classmethod
