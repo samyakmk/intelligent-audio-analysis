@@ -51,7 +51,8 @@ infra/             Docker build definitions
 scripts/           Reproducible setup, fixture, and verification commands
 docs/              Architecture, safety contract, and implementation scope
 compose.yaml       Production-shaped local topology
-.env.example       Placeholder-only configuration inventory
+config/pocket.json Checked-in non-secret runtime and build configuration
+.env.example       Secret-only private-file template
 ```
 
 Start with [the architecture](docs/ARCHITECTURE.md), [the configuration handoff](docs/CONFIGURATION.md), [the safety contract](docs/CHANGE_SAFETY_CONTRACT.md), and [the implementation scope](docs/IMPLEMENTATION_SCOPE.md).
@@ -69,12 +70,13 @@ only when validating non-WAV uploads in the lightweight host profile.
 
 ## Safe configuration
 
-The API and client never search for or implicitly load dotenv files. The placeholder
-inventory is `.env.example`; it contains no credentials. Real `.env` variants are
-ignored by Git and excluded from Docker contexts. The local Gemini launcher reads only
-an absolute file path you explicitly nominate, parses it as data rather than shell
-code, and passes an allowlisted subset to the API process only. Never put a provider
-key in an `EXPO_PUBLIC_*` variable: those values are compiled into the app.
+The checked-in `config/pocket.json` owns non-secret behavior: provider/model choices,
+budgets, timeouts, retries, quotas, ports, origins, and browser/native settings.
+`.env.example` is only a template for API keys, signing material, credential-bearing
+database URLs, and other secrets. Real `.env` variants are ignored by Git and excluded
+from Docker contexts. Launchers never search for dotenv implicitly: they read only an
+absolute private path you nominate, reject public settings found there, and never pass
+server secrets to Expo. Never put a provider key in an `EXPO_PUBLIC_*` variable.
 
 The only client configuration needed for local development is:
 
@@ -99,9 +101,10 @@ Open `http://localhost:8081`. The API schema is at
 `http://localhost:8000/docs`, and health is exposed at
 `http://localhost:8000/healthz`.
 
-For a local Gemini run, first review the provider terms and ensure every uploaded file
-fits the configured `synthetic-approved-only` lane. Then use your private file by
-absolute path:
+For a local Gemini run, review the provider terms and the public policy in
+`config/pocket.json`, then ensure every uploaded file fits that lane. Your private file
+needs only `GEMINI_API_KEY` for this profile, though independent session/token secrets
+are recommended. Pass it by absolute path:
 
 ```sh
 make setup
@@ -109,10 +112,9 @@ ENV_FILE=/absolute/path/to/.env make run-gemini
 ```
 
 The launcher forces SQLite, filesystem blobs, loopback API hosting, and an inline
-worker. It also runs Alembic before startup. Your listed key/model/budget/policy values
-are sufficient; optional Gemini timeout and dated-price values use the reviewed
-defaults in `.env.example`. The upload UI additionally requires a per-file approval
-before any bytes can leave the machine.
+worker. It also runs Alembic before startup. Model, budget, policy, timeout, retry, and
+dated-price values come from `config/pocket.json`. The upload UI additionally requires
+a per-file approval before any bytes can leave the machine.
 
 For a manual backend setup, use the service-local isolated environment:
 
@@ -147,17 +149,18 @@ implicitly inspect a real `.env` file:
 make compose-up
 ```
 
-This wrapper explicitly prevents Compose from reading `.env`. To use a private,
-operator-owned configuration, pass an absolute path:
+This wrapper explicitly prevents Compose from discovering `.env`. To use a private,
+operator-owned secret file, pass an absolute path; public Compose interpolation still
+comes from `config/pocket.json`:
 
 ```sh
 ENV_FILE=/absolute/path/to/pocket-demo.env make compose-up-configured
 ```
 
-The placeholder values are a configuration inventory, not deployable credentials.
-Replace the active credentials for the profile you run with strong, operator-managed
-values before exposing any service beyond localhost. Reserved entries remain inert
-until their adapters are implemented; the configuration guide lists the boundary.
+The placeholders in `.env.example` are not deployable credentials. Replace only the
+secrets needed by the profile you run with strong, operator-managed values before
+exposing any service beyond localhost. Reserved public entries remain inert until
+their adapters are implemented; the configuration guide lists the boundary.
 
 ## Verification
 

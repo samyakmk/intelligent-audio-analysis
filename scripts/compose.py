@@ -2,8 +2,8 @@
 """Invoke Compose in safe-default or explicit-config mode.
 
 Safe-default mode sanitizes ambient configuration before interpolation and forces
-fixture-only local values. Explicit-config mode accepts a user-nominated env path;
-there is intentionally no implicit `.env` fallback.
+fixture-only local values. Public behavior comes from config/pocket.json. Explicit
+mode accepts a user-nominated secret-only env path; there is no implicit `.env` fallback.
 """
 
 from __future__ import annotations
@@ -13,9 +13,17 @@ import shutil
 import sys
 from pathlib import Path
 
+from configuration import (
+    PRIVATE_ENV_KEYS,
+    load_private_environment,
+    load_public_configuration,
+    validate_private_environment,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "compose.yaml"
+DEFAULT_CONFIG_FILE = ROOT / "config" / "pocket.json"
 
 PROCESS_KEYS = {
     "PATH",
@@ -49,35 +57,21 @@ SAFE_COMPOSE_VALUES = {
     "DEMO_MODE": "true",
     "PROVIDER_MODE": "fixture",
     "ALLOW_REMOTE_PROVIDER_CALLS": "false",
-    "POSTGRES_USER": "pocket",
     "POSTGRES_PASSWORD": "pocket-local-only",
-    "POSTGRES_DB": "pocket",
-    "POSTGRES_PORT": "5432",
     "COMPOSE_DATABASE_URL": "postgresql+psycopg://pocket:pocket-local-only@postgres:5432/pocket",
     "MINIO_ROOT_USER": "pocket-local",
     "MINIO_ROOT_PASSWORD": "pocket-local-only",
-    "MINIO_API_PORT": "9000",
-    "MINIO_CONSOLE_PORT": "9001",
-    "S3_BUCKET": "pocket-demo",
-    "API_PORT": "8000",
-    "WEB_PORT": "8081",
-    "CORS_ORIGINS": "http://localhost:8081,http://127.0.0.1:8081",
     "SESSION_SECRET": "local-demo-session-secret-change-before-sharing",
     "CSRF_SECRET": "local-demo-csrf-secret-change-before-sharing",
     "TOKEN_SIGNING_SECRET": "local-demo-capability-secret-change-before-sharing",
-    "COOKIE_SECURE": "false",
-    "LOG_LEVEL": "INFO",
-    "LOG_FORMAT": "json",
     "PRICE_CATALOG_PATH": "/dev/null",
-    "FAILURE_INJECTION_ENABLED": "false",
-    "EXPO_PUBLIC_API_URL": "http://localhost:8000",
     "EXPO_NO_DOTENV": "1",
 }
 
 
 def usage() -> str:
     return (
-        "usage: scripts/compose.py [--env-file /explicit/path] "
+        "usage: scripts/compose.py [--config-file path] [--env-file /explicit/path] "
         "<compose arguments...>"
     )
 
@@ -85,11 +79,16 @@ def usage() -> str:
 def main() -> int:
     arguments = sys.argv[1:]
     configured_env: str | None = None
-    if arguments[:1] == ["--env-file"]:
+    config_file = str(DEFAULT_CONFIG_FILE)
+    while arguments[:1] in (["--config-file"], ["--env-file"]):
         if len(arguments) < 3:
             raise SystemExit(usage())
-        configured_env = arguments[1]
+        flag, value = arguments[:2]
         arguments = arguments[2:]
+        if flag == "--config-file":
+            config_file = value
+        else:
+            configured_env = value
     if not arguments:
         raise SystemExit(usage())
 
@@ -105,14 +104,19 @@ def main() -> int:
         or key.startswith("LC_")
         or key.startswith("XDG_")
     }
+    environment.update(load_public_configuration(config_file))
+    for private_key in PRIVATE_ENV_KEYS:
+        environment.pop(private_key, None)
 
     if configured_env is None:
         environment.update(SAFE_COMPOSE_VALUES)
-        env_file = os.devnull
     else:
         if configured_env in {"", ".env"}:
             raise SystemExit("pass an explicit env path; bare `.env` is not accepted")
-        env_file = str(Path(configured_env).expanduser().resolve())
+        private_path = str(Path(configured_env).expanduser().resolve())
+        private_values = load_private_environment(private_path)
+        validate_private_environment(private_values)
+        environment.update(private_values)
         environment["EXPO_NO_DOTENV"] = "1"
 
     command = [
@@ -121,7 +125,7 @@ def main() -> int:
         "--project-directory",
         str(ROOT),
         "--env-file",
-        env_file,
+        os.devnull,
         "--file",
         str(COMPOSE_FILE),
         *arguments,

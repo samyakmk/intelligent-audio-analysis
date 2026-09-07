@@ -2,16 +2,15 @@
 """Run the local FastAPI + Expo web profile.
 
 The safe default never loads dotenv.  An operator can explicitly nominate an
-absolute environment-file path for a configured local run; it is parsed as
-data (never sourced as shell code), and server-only values are not passed to
-the Expo process.
+absolute secret-file path for a configured local run. Public behavior comes from
+config/pocket.json; secrets are parsed as data (never sourced as shell code), and
+server-only values are not passed to the Expo process.
 """
 
 from __future__ import annotations
 
 import argparse
 import os
-import re
 import shutil
 import signal
 import sqlite3
@@ -20,38 +19,53 @@ import sys
 import time
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from configuration import (  # noqa: E402
+    PRIVATE_ENV_KEYS,
+    load_private_environment,
+    load_public_configuration,
+    validate_private_environment,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 API_DIR = ROOT / "services" / "api"
 CLIENT_DIR = ROOT / "apps" / "client"
 LOCAL_DIR = ROOT / ".local"
-ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-GEMINI_LOCAL_ENV_KEYS = {
+# Kept as a compatibility export for launcher tests and downstream tooling.
+GEMINI_LOCAL_ENV_KEYS = PRIVATE_ENV_KEYS
+LOCAL_API_PRIVATE_KEYS = {
+    "CSRF_SECRET",
     "GEMINI_API_KEY",
-    "GEMINI_BASE_URL",
-    "GEMINI_SPEECH_MODEL",
-    "GEMINI_REQUEST_TIMEOUT_SECONDS",
-    "GEMINI_UPLOAD_TIMEOUT_SECONDS",
-    "GEMINI_MAX_HTTP_RETRIES",
-    "GEMINI_RETRY_BACKOFF_SECONDS",
-    "GEMINI_PRICE_CATALOG_VERSION",
-    "GEMINI_CHEAP_INPUT_USD_PER_MILLION",
-    "GEMINI_CHEAP_OUTPUT_USD_PER_MILLION",
-    "GEMINI_STRONG_INPUT_USD_PER_MILLION",
-    "GEMINI_STRONG_OUTPUT_USD_PER_MILLION",
-    "GEMINI_SPEECH_INPUT_USD_PER_MILLION",
-    "GEMINI_SPEECH_OUTPUT_USD_PER_MILLION",
-    "LLM_CHEAP_MODEL",
-    "LLM_STRONG_MODEL",
-    "MAX_AI_SPEND_PER_RECORDING_USD",
-    "MAX_AI_SPEND_PER_ASK_USD",
-    "MAX_AI_SPEND_PER_WORKSPACE_MONTH_USD",
-    "MAX_CHEAP_REPAIR_ATTEMPTS",
-    "MAX_STRONG_REPAIR_ATTEMPTS",
-    "MAX_STRONG_CONTEXT_TOKENS",
-    "MAX_AUDIO_DURATION_SECONDS",
-    "PROVIDER_DATA_POLICY",
-    "PROVIDER_ALLOWED_LANGUAGES",
+    "OTEL_EXPORTER_OTLP_HEADERS",
+    "SENTRY_DSN",
+    "SESSION_SECRET",
+    "TOKEN_SIGNING_SECRET",
+}
+BASE_PROCESS_KEYS = {
+    "ALL_PROXY",
+    "CI",
+    "CURL_CA_BUNDLE",
+    "FORCE_COLOR",
+    "HOME",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "LANG",
+    "LOGNAME",
+    "NO_COLOR",
+    "NO_PROXY",
+    "PATH",
+    "REQUESTS_CA_BUNDLE",
+    "SHELL",
+    "SSL_CERT_FILE",
+    "TEMP",
+    "TERM",
+    "TMP",
+    "TMPDIR",
+    "USER",
 }
 BASELINE_REVISION = "c14c172f08b5"
 HEAD_REVISION = "d9a2f18b6c41"
@@ -72,34 +86,7 @@ BASELINE_RECORDING_COLUMN_MARKERS = {
 }
 
 
-def load_explicit_environment(path_value: str) -> dict[str, str]:
-    """Parse a deliberately selected dotenv-style file without shell evaluation."""
-
-    path = Path(path_value).expanduser()
-    if not path.is_absolute():
-        raise SystemExit("--env-file must be an absolute path; no implicit .env is allowed")
-    if not path.is_file():
-        raise SystemExit("the explicitly selected environment file does not exist")
-    values: dict[str, str] = {}
-    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line.removeprefix("export ").lstrip()
-        if "=" not in line:
-            raise SystemExit(f"invalid environment assignment on line {line_number}")
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip()
-        if not ENV_ASSIGNMENT.fullmatch(key):
-            raise SystemExit(f"invalid environment key on line {line_number}")
-        if key in values:
-            raise SystemExit(f"duplicate environment key on line {line_number}")
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            value = value[1:-1]
-        values[key] = value
-    return values
+load_explicit_environment = load_private_environment
 
 
 def command_or_fail(name: str) -> str:
@@ -180,7 +167,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Pocket API and universal web client")
     parser.add_argument(
         "--env-file",
-        help="absolute path to an explicitly selected private environment file",
+        help="absolute path to an explicitly selected secret-only environment file",
+    )
+    parser.add_argument(
+        "--config-file",
+        default=str(ROOT / "config" / "pocket.json"),
+        help="public JSON configuration path",
     )
     parser.add_argument(
         "--provider-mode",
@@ -197,7 +189,15 @@ def main() -> int:
     blob_root = LOCAL_DIR / "blobs"
     blob_root.mkdir(parents=True, exist_ok=True)
 
-    environment = os.environ.copy()
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key in BASE_PROCESS_KEYS
+        or key.startswith("LC_")
+        or key.startswith("npm_config_")
+    }
+    assert not set(environment) & PRIVATE_ENV_KEYS
+    environment.update(load_public_configuration(args.config_file))
     local_defaults = {
         "APP_ENV": "development",
         "DEMO_MODE": "true",
@@ -216,16 +216,6 @@ def main() -> int:
         "EXPO_PUBLIC_API_URL": "http://localhost:8000",
         "EXPO_PUBLIC_DEMO_MODE": "true",
     }
-    provider_secret_keys = (
-        "ASSEMBLYAI_API_KEY",
-        "GEMINI_API_KEY",
-        "OPENAI_API_KEY",
-        "PROVIDER_CALLBACK_SECRET",
-        "S3_ACCESS_KEY_ID",
-        "S3_SECRET_ACCESS_KEY",
-    )
-    for secret_key in provider_secret_keys:
-        environment.pop(secret_key, None)
     if args.provider_mode == "fixture":
         if args.env_file:
             raise SystemExit("--env-file is accepted only with --provider-mode gemini")
@@ -240,8 +230,9 @@ def main() -> int:
         if not args.env_file:
             raise SystemExit("Gemini mode requires --env-file with an absolute private path")
         selected = load_explicit_environment(args.env_file)
+        validate_private_environment(selected)
         configured = {
-            key: value for key, value in selected.items() if key in GEMINI_LOCAL_ENV_KEYS
+            key: value for key, value in selected.items() if key in LOCAL_API_PRIVATE_KEYS
         }
         environment.update(local_defaults)
         environment.update(configured)
@@ -251,20 +242,14 @@ def main() -> int:
 
     # The Expo process receives only normal process settings and explicitly public
     # values. Server/provider credentials from the invoking shell stay API-only.
-    client_process_keys = {
-        "PATH",
-        "HOME",
-        "USER",
-        "LOGNAME",
-        "SHELL",
-        "TMPDIR",
-        "TMP",
-        "TEMP",
-        "LANG",
-        "TERM",
-        "CI",
-        "NO_COLOR",
-        "FORCE_COLOR",
+    client_process_keys = BASE_PROCESS_KEYS - {
+        "ALL_PROXY",
+        "CURL_CA_BUNDLE",
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "NO_PROXY",
+        "REQUESTS_CA_BUNDLE",
+        "SSL_CERT_FILE",
     }
     client_environment = {
         key: value

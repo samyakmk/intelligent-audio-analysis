@@ -213,6 +213,13 @@ services:
       dockerfile: infra/docker/client.Dockerfile
       args:
         EXPO_PUBLIC_API_URL: ${EXPO_PUBLIC_API_URL:-http://localhost:8000}
+        EXPO_PUBLIC_DEMO_MODE: ${EXPO_PUBLIC_DEMO_MODE:-true}
+        EXPO_PUBLIC_STATUS_POLL_INTERVAL_MS: ${EXPO_PUBLIC_STATUS_POLL_INTERVAL_MS:-1500}
+        EXPO_PUBLIC_MEDIA_GRANT_REFRESH_SECONDS: ${EXPO_PUBLIC_MEDIA_GRANT_REFRESH_SECONDS:-45}
+        EXPO_PUBLIC_SENTRY_DSN: ${EXPO_PUBLIC_SENTRY_DSN:-}
+        EXPO_APP_NAME: ${EXPO_APP_NAME:-Pocket Evidence Lab}
+        EXPO_APP_SLUG: ${EXPO_APP_SLUG:-pocket-evidence-lab}
+        EXPO_APP_SCHEME: ${EXPO_APP_SCHEME:-pocketdemo}
     ports:
       - "127.0.0.1:${WEB_PORT:-8081}:8080"
     depends_on:

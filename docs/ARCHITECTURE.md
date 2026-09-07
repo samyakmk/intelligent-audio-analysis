@@ -120,10 +120,13 @@ de-identified attempt-cost records for spend integrity.
 ## Configuration boundary
 
 Only client-safe values may use the `EXPO_PUBLIC_` prefix. Provider credentials,
-database/object-store credentials, session secrets, routing policy, and price data
-belong only in the server environment. The repository provides a placeholder
-`.env.example`; real `.env` variants are ignored and are never required for the
-fixture-backed lightweight profile.
+database/object-store credentials, and session secrets belong in an explicitly
+selected private `.env`. Non-secret routing policy, exact model IDs, dated price data,
+budgets, timeouts, quotas, and client/native settings live in the checked-in
+`config/pocket.json`. The launchers flatten that public file into process settings,
+then inject only allowlisted secrets into server processes. A private file containing
+public configuration fails startup instead of silently overriding reviewable policy.
+Real `.env` variants are ignored and are never required for the fixture profile.
 
 ## Scale extension points
 

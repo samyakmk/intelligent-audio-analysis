@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sqlite3
 from pathlib import Path
 
@@ -56,23 +57,75 @@ def test_missing_local_database_requires_no_stamp(tmp_path: Path) -> None:
     assert RUN_LOCAL.legacy_sqlite_needs_stamp(missing) is False
 
 
-def test_gemini_local_allowlist_contains_required_private_contract_only() -> None:
+def test_gemini_local_allowlist_contains_secrets_only() -> None:
     assert {
         "GEMINI_API_KEY",
-        "GEMINI_BASE_URL",
-        "LLM_CHEAP_MODEL",
-        "LLM_STRONG_MODEL",
-        "MAX_AI_SPEND_PER_RECORDING_USD",
-        "MAX_AI_SPEND_PER_ASK_USD",
-        "MAX_AI_SPEND_PER_WORKSPACE_MONTH_USD",
-        "MAX_CHEAP_REPAIR_ATTEMPTS",
-        "MAX_STRONG_REPAIR_ATTEMPTS",
-        "MAX_STRONG_CONTEXT_TOKENS",
-        "PROVIDER_DATA_POLICY",
-        "PROVIDER_ALLOWED_LANGUAGES",
+        "SESSION_SECRET",
+        "CSRF_SECRET",
+        "TOKEN_SIGNING_SECRET",
     }.issubset(RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS)
-    assert "DATABASE_URL" not in RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
+    assert "DATABASE_URL" in RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
+    assert "LLM_CHEAP_MODEL" not in RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
+    assert "MAX_AI_SPEND_PER_RECORDING_USD" not in RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
+    assert "PROVIDER_DATA_POLICY" not in RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
     assert "EXPO_PUBLIC_GEMINI_API_KEY" not in RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
+
+
+def test_private_environment_rejects_public_configuration(tmp_path: Path) -> None:
+    private = tmp_path / "secrets.env"
+    private.write_text(
+        "GEMINI_API_KEY=dummy-secret\nLLM_CHEAP_MODEL=public-model\n",
+        encoding="utf-8",
+    )
+
+    values = RUN_LOCAL.load_explicit_environment(str(private))
+    with pytest.raises(SystemExit, match="move these keys to config/pocket.json"):
+        RUN_LOCAL.validate_private_environment(values)
+
+
+def test_public_configuration_is_typed_flattened_and_secret_free(tmp_path: Path) -> None:
+    public = tmp_path / "pocket.json"
+    public.write_text(
+        json.dumps(
+            {
+                "models": {
+                    "LLM_CHEAP_MODEL": "gemini-test",
+                    "MAX_CHEAP_REPAIR_ATTEMPTS": 1,
+                    "ALLOW_REMOTE_PROVIDER_CALLS": True,
+                    "PROVIDER_ALLOWED_LANGUAGES": ["en", "en-US"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert RUN_LOCAL.load_public_configuration(public) == {
+        "LLM_CHEAP_MODEL": "gemini-test",
+        "MAX_CHEAP_REPAIR_ATTEMPTS": "1",
+        "ALLOW_REMOTE_PROVIDER_CALLS": "true",
+        "PROVIDER_ALLOWED_LANGUAGES": "en,en-US",
+    }
+
+    public.write_text(
+        json.dumps({"unsafe": {"GEMINI_API_KEY": "must-not-be-public"}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(SystemExit, match="must be kept in the private .env"):
+        RUN_LOCAL.load_public_configuration(public)
+
+
+def test_checked_in_public_config_owns_gemini_models_budgets_and_policy() -> None:
+    public = RUN_LOCAL.load_public_configuration(ROOT / "config" / "pocket.json")
+
+    assert not set(public) & RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
+    assert public["GEMINI_SPEECH_MODEL"] == "gemini-3.5-transcribe"
+    assert public["LLM_CHEAP_MODEL"] == "gemini-3.5-flash-lite"
+    assert public["LLM_STRONG_MODEL"] == "gemini-3.8-flash"
+    assert public["MAX_AI_SPEND_PER_RECORDING_USD"] == "2.0"
+    assert public["MAX_AI_SPEND_PER_ASK_USD"] == "0.1"
+    assert public["MAX_AI_SPEND_PER_WORKSPACE_MONTH_USD"] == "20.0"
+    assert public["PROVIDER_DATA_POLICY"] == "synthetic-approved-only"
+    assert public["PROVIDER_ALLOWED_LANGUAGES"] == "en"
 
 
 def test_legacy_sqlite_stamp_detection_is_narrow(tmp_path: Path) -> None:

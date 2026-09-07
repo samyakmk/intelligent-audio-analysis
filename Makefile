@@ -7,7 +7,9 @@ CLIENT_DIR := apps/client
 API_DIR := services/api
 VENV_PYTHON := $(CURDIR)/$(API_DIR)/.venv/bin/python
 API_PYTHON := $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),$(PYTHON))
-SAFE_COMPOSE := $(PYTHON) scripts/compose.py
+CONFIG_FILE ?= $(CURDIR)/config/pocket.json
+CONFIG_RUN := $(PYTHON) scripts/with_config.py --config-file "$(CONFIG_FILE)" --
+SAFE_COMPOSE := $(PYTHON) scripts/compose.py --config-file "$(CONFIG_FILE)"
 
 export EXPO_NO_DOTENV := 1
 
@@ -23,11 +25,11 @@ setup: ## Install locked backend/client dependencies and verify fixtures.
 	@sh scripts/setup.sh
 
 run: ## Run the zero-account SQLite/filesystem API and Expo browser app.
-	@$(PYTHON) scripts/run_local.py
+	@$(PYTHON) scripts/run_local.py --config-file "$(CONFIG_FILE)"
 
 run-gemini: ## Run locally with Gemini using ENV_FILE=/absolute/private/path.
-	@test -n "$(ENV_FILE)" || { echo "set ENV_FILE to an absolute private configuration path" >&2; exit 2; }
-	@$(PYTHON) scripts/run_local.py --provider-mode gemini --env-file "$(ENV_FILE)"
+	@test -n "$(ENV_FILE)" || { echo "set ENV_FILE to an absolute private secret path" >&2; exit 2; }
+	@$(PYTHON) scripts/run_local.py --config-file "$(CONFIG_FILE)" --provider-mode gemini --env-file "$(ENV_FILE)"
 
 fixtures: ## Verify generated media, sidecars, questions, and gate metadata.
 	@$(PYTHON) scripts/generate_fixture_wav.py --check
@@ -55,15 +57,15 @@ typecheck: ## Type-check the universal TypeScript client.
 	@EXPO_NO_DOTENV=1 $(NPM) --prefix $(CLIENT_DIR) run typecheck
 
 web: ## Start the Expo browser development server on port 8081.
-	@EXPO_NO_DOTENV=1 $(NPM) --prefix $(CLIENT_DIR) run web
+	@$(CONFIG_RUN) $(NPM) --prefix $(CLIENT_DIR) run web
 
 export: ## Produce the static browser export in apps/client/dist.
-	@EXPO_NO_DOTENV=1 $(NPM) --prefix $(CLIENT_DIR) run export
+	@$(CONFIG_RUN) $(NPM) --prefix $(CLIENT_DIR) run export
 
 web-export: export ## Alias for the static browser export.
 
 prebuild: ## Generate clean iOS and Android native projects from shared source.
-	@EXPO_NO_DOTENV=1 $(NPM) --prefix $(CLIENT_DIR) run prebuild -- --no-install
+	@$(CONFIG_RUN) $(NPM) --prefix $(CLIENT_DIR) run prebuild -- --no-install
 
 migrate: ## Upgrade DATABASE_URL (or the local SQLite default) to the schema head.
 	@mkdir -p $(API_DIR)/data
@@ -88,9 +90,9 @@ compose-logs: ## Follow safe-default Compose logs.
 	@$(SAFE_COMPOSE) logs --follow
 
 compose-up-configured: ## Start with ENV_FILE=/explicit/path (never defaults to .env).
-	@test -n "$(ENV_FILE)" || { echo "set ENV_FILE to an explicit configuration path" >&2; exit 2; }
-	@$(PYTHON) scripts/compose.py --env-file "$(ENV_FILE)" up --build
+	@test -n "$(ENV_FILE)" || { echo "set ENV_FILE to an explicit secret path" >&2; exit 2; }
+	@$(SAFE_COMPOSE) --env-file "$(ENV_FILE)" up --build
 
 compose-config-configured: ## Validate with ENV_FILE=/explicit/path.
-	@test -n "$(ENV_FILE)" || { echo "set ENV_FILE to an explicit configuration path" >&2; exit 2; }
-	@$(PYTHON) scripts/compose.py --env-file "$(ENV_FILE)" config --quiet
+	@test -n "$(ENV_FILE)" || { echo "set ENV_FILE to an explicit secret path" >&2; exit 2; }
+	@$(SAFE_COMPOSE) --env-file "$(ENV_FILE)" config --quiet

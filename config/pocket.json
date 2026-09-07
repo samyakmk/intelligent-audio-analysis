@@ -1,0 +1,181 @@
+{
+  "runtime": {
+    "APP_ENV": "development",
+    "DEMO_MODE": true,
+    "PROVIDER_MODE": "gemini",
+    "ALLOW_REMOTE_PROVIDER_CALLS": true,
+    "API_HOST": "0.0.0.0",
+    "API_PORT": 8000,
+    "WEB_PORT": 8081,
+    "INLINE_WORKER": true,
+    "FIXTURE_ROOT": "fixtures",
+    "LOG_LEVEL": "INFO"
+  },
+  "network": {
+    "API_PUBLIC_URL": "http://localhost:8000",
+    "WEB_PUBLIC_URL": "http://localhost:8081",
+    "CORS_ORIGINS": [
+      "http://localhost:8081",
+      "http://127.0.0.1:8081"
+    ],
+    "TRUSTED_HOSTS": [
+      "localhost",
+      "127.0.0.1",
+      "api"
+    ],
+    "FORWARDED_ALLOW_IPS": [
+      "127.0.0.1"
+    ]
+  },
+  "database": {
+    "POSTGRES_USER": "pocket",
+    "POSTGRES_DB": "pocket",
+    "POSTGRES_PORT": 5432,
+    "DB_POOL_SIZE": 5,
+    "DB_MAX_OVERFLOW": 5,
+    "DB_POOL_TIMEOUT_SECONDS": 15,
+    "DB_STATEMENT_TIMEOUT_MS": 10000
+  },
+  "storage": {
+    "BLOB_STORE_BACKEND": "filesystem",
+    "BLOB_ROOT": ".local/blobs",
+    "S3_ENDPOINT_URL": "http://localhost:9000",
+    "S3_REGION": "us-east-1",
+    "S3_BUCKET": "pocket-demo",
+    "S3_KEY_PREFIX": "pocket-demo",
+    "S3_FORCE_PATH_STYLE": true,
+    "S3_USE_TLS": false,
+    "MINIO_API_PORT": 9000,
+    "MINIO_CONSOLE_PORT": 9001,
+    "MEDIA_GRANT_TTL_SECONDS": 60,
+    "MULTIPART_PART_SIZE_MIB": 16,
+    "ABANDONED_MULTIPART_TTL_HOURS": 24,
+    "EPHEMERAL_DERIVATIVE_TTL_HOURS": 24
+  },
+  "authentication": {
+    "SESSION_COOKIE_NAME": "pocket_demo_session",
+    "CSRF_COOKIE_NAME": "pocket_demo_csrf",
+    "COOKIE_SECURE": false,
+    "COOKIE_SAMESITE": "lax",
+    "SESSION_TTL_SECONDS": 28800,
+    "DEMO_PRINCIPAL_A_EMAIL": "alex@example.invalid",
+    "DEMO_PRINCIPAL_B_EMAIL": "blair@example.invalid",
+    "DEMO_WORKSPACE_A_NAME": "Pocket Demo Alpha",
+    "DEMO_WORKSPACE_B_NAME": "Pocket Demo Beta"
+  },
+  "provider_policy": {
+    "PROVIDER_DATA_POLICY": "synthetic-approved-only",
+    "PROVIDER_ALLOWED_LANGUAGES": [
+      "en"
+    ],
+    "PROVIDER_REGION": "operator-reviewed-local-demo"
+  },
+  "gemini": {
+    "GEMINI_BASE_URL": "https://generativelanguage.googleapis.com/v1beta",
+    "GEMINI_SPEECH_MODEL": "gemini-3.5-transcribe",
+    "GEMINI_REQUEST_TIMEOUT_SECONDS": 300,
+    "GEMINI_UPLOAD_TIMEOUT_SECONDS": 600,
+    "GEMINI_MAX_HTTP_RETRIES": 2,
+    "GEMINI_RETRY_BACKOFF_SECONDS": 0.25,
+    "LLM_CHEAP_ALIAS": "llm.cheap",
+    "LLM_CHEAP_MODEL": "gemini-3.5-flash-lite",
+    "LLM_STRONG_ALIAS": "llm.strong",
+    "LLM_STRONG_MODEL": "gemini-3.8-flash",
+    "MAX_STRONG_CONTEXT_TOKENS": 131072,
+    "MAX_CHEAP_REPAIR_ATTEMPTS": 1,
+    "MAX_STRONG_REPAIR_ATTEMPTS": 1
+  },
+  "gemini_pricing": {
+    "GEMINI_PRICE_CATALOG_VERSION": "google-gemini-standard-2026-09-07",
+    "GEMINI_CHEAP_INPUT_USD_PER_MILLION": 0.30,
+    "GEMINI_CHEAP_OUTPUT_USD_PER_MILLION": 2.50,
+    "GEMINI_STRONG_INPUT_USD_PER_MILLION": 0.75,
+    "GEMINI_STRONG_OUTPUT_USD_PER_MILLION": 3.75,
+    "GEMINI_SPEECH_INPUT_USD_PER_MILLION": 2.00,
+    "GEMINI_SPEECH_OUTPUT_USD_PER_MILLION": 12.00
+  },
+  "future_providers": {
+    "ASSEMBLYAI_BASE_URL": "https://api.assemblyai.com",
+    "SPEECH_STANDARD_ALIAS": "speech.standard",
+    "SPEECH_STANDARD_MODEL": "unconfigured",
+    "SPEECH_STRONG_ALIAS": "speech.strong",
+    "SPEECH_STRONG_MODEL": "unconfigured",
+    "OPENAI_BASE_URL": "https://api.openai.com/v1",
+    "EMBEDDING_ALIAS": "embed.multilingual",
+    "EMBEDDING_MODEL": "text-embedding-3-small",
+    "EMBEDDING_DIMENSIONS": 1536
+  },
+  "media_processing": {
+    "FFMPEG_PATH": "ffmpeg",
+    "FFPROBE_PATH": "ffprobe",
+    "MAX_UPLOAD_BYTES": 524288000,
+    "MAX_AUDIO_DURATION_SECONDS": 7200,
+    "PROCESSING_SAMPLE_RATE_HZ": 16000,
+    "PROCESSING_AUDIO_CHANNELS": 1,
+    "PROCESSING_CONCURRENCY": 2,
+    "WORKER_POLL_INTERVAL_SECONDS": 1,
+    "WORKER_LEASE_SECONDS": 90,
+    "WORKER_HEARTBEAT_SECONDS": 20,
+    "WORKER_MAX_ATTEMPTS": 3,
+    "WORKER_RETRY_BASE_SECONDS": 5,
+    "WORKER_RETRY_MAX_SECONDS": 300,
+    "MEDIA_CHUNK_TARGET_SECONDS": 600,
+    "MEDIA_CHUNK_OVERLAP_SECONDS": 2,
+    "EVIDENCE_UNIT_MAX_TOKENS": 700,
+    "ASK_POST_FUSION_CANDIDATES": 8
+  },
+  "limits": {
+    "MAX_AI_SPEND_PER_RECORDING_USD": 2.00,
+    "MAX_AI_SPEND_PER_ASK_USD": 0.10,
+    "MAX_AI_SPEND_PER_WORKSPACE_MONTH_USD": 20.00,
+    "WORKSPACE_STORAGE_QUOTA_BYTES": 5368709120,
+    "WORKSPACE_RECORDING_QUOTA": 200,
+    "RECORDING_RETENTION_DAYS": 30,
+    "ASK_MAX_CALLS_PER_SESSION": 8,
+    "ASK_MAX_INPUT_TOKENS_PER_SESSION": 32000,
+    "ASK_RATE_LIMIT_PER_MINUTE": 10,
+    "UPLOAD_RATE_LIMIT_PER_MINUTE": 5,
+    "SWEEPER_INTERVAL_SECONDS": 60
+  },
+  "costs": {
+    "PRICE_CATALOG_PATH": "infra/pricing/price-catalog.example.json",
+    "PRICE_CATALOG_VERSION": "unconfigured-example-v1",
+    "PRICE_CATALOG_CURRENCY": "USD",
+    "COST_RECONCILIATION_ENABLED": false,
+    "COST_RECONCILIATION_INTERVAL_SECONDS": 900,
+    "PLATFORM_FIXED_COST_MONTHLY_USD": 0.00
+  },
+  "observability": {
+    "LOG_FORMAT": "json",
+    "LOG_CONTENT_POLICY": "metadata-only",
+    "REQUEST_ID_HEADER": "X-Request-ID",
+    "OTEL_ENABLED": false,
+    "OTEL_SERVICE_NAME": "pocket-demo-api",
+    "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
+    "METRICS_ENABLED": false,
+    "SENTRY_ENVIRONMENT": "development"
+  },
+  "failure_injection": {
+    "FAILURE_INJECTION_ENABLED": false,
+    "FAILURE_INJECTION_STAGE": "none",
+    "FAILURE_INJECTION_MODE": "none",
+    "FAILURE_INJECTION_COUNT": 0,
+    "FAILURE_INJECTION_DELAY_MS": 0,
+    "FAILURE_INJECTION_RECORDING_ID": ""
+  },
+  "client": {
+    "EXPO_PUBLIC_API_URL": "http://localhost:8000",
+    "EXPO_PUBLIC_DEMO_MODE": true,
+    "EXPO_PUBLIC_STATUS_POLL_INTERVAL_MS": 1500,
+    "EXPO_PUBLIC_MEDIA_GRANT_REFRESH_SECONDS": 45,
+    "EXPO_PUBLIC_SENTRY_DSN": ""
+  },
+  "native_app": {
+    "EXPO_APP_NAME": "Pocket Evidence Lab",
+    "EXPO_APP_SLUG": "pocket-evidence-lab",
+    "EXPO_APP_SCHEME": "pocketdemo",
+    "IOS_BUNDLE_IDENTIFIER": "com.pocketdemo.evidencelab",
+    "ANDROID_PACKAGE_NAME": "com.pocketdemo.evidencelab",
+    "EAS_PROJECT_ID": ""
+  }
+}
