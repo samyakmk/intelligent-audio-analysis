@@ -8,5 +8,5 @@
     },
     "types": ["react", "react-native", "vitest/globals"]
   },
-  "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "app.config.ts", "expo-env.d.ts"]
+  "include": ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx", "app.config.ts"]
 }
