@@ -43,6 +43,66 @@ def test_explicit_environment_parser_requires_absolute_path() -> None:
         RUN_LOCAL.load_explicit_environment("operator-settings")
 
 
+def test_auto_mode_uses_fixture_without_env_file(tmp_path: Path) -> None:
+    mode, values, selected_path = RUN_LOCAL.load_provider_environment(
+        "auto", None, default_env_file=tmp_path / ".env"
+    )
+
+    assert mode == "fixture"
+    assert values == {}
+    assert selected_path is None
+
+
+@pytest.mark.parametrize("value", ["", "replace-me-gemini-api-key", "<gemini-key>"])
+def test_auto_mode_uses_fixture_for_unconfigured_key(tmp_path: Path, value: str) -> None:
+    private = tmp_path / ".env"
+    private.write_text(f"GEMINI_API_KEY={value}\n", encoding="utf-8")
+
+    mode, values, selected_path = RUN_LOCAL.load_provider_environment(
+        "auto", None, default_env_file=private
+    )
+
+    assert mode == "fixture"
+    assert values == {}
+    assert selected_path == private
+
+
+def test_auto_mode_enables_gemini_and_keeps_only_local_api_secrets(tmp_path: Path) -> None:
+    private = tmp_path / ".env"
+    private.write_text(
+        "GEMINI_API_KEY=dummy-gemini-key-for-launcher-tests\n"
+        "SESSION_SECRET=dummy-session-secret-for-launcher-tests\n"
+        "POSTGRES_PASSWORD=must-not-reach-lightweight-api\n",
+        encoding="utf-8",
+    )
+
+    mode, values, selected_path = RUN_LOCAL.load_provider_environment(
+        "auto", None, default_env_file=private
+    )
+
+    assert mode == "gemini"
+    assert values == {
+        "GEMINI_API_KEY": "dummy-gemini-key-for-launcher-tests",
+        "SESSION_SECRET": "dummy-session-secret-for-launcher-tests",
+    }
+    assert selected_path == private
+
+
+def test_explicit_fixture_mode_never_loads_env_file(tmp_path: Path) -> None:
+    private = tmp_path / ".env"
+    private.write_text("GEMINI_API_KEY=dummy-key-for-tests-only\n", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="cannot be combined"):
+        RUN_LOCAL.load_provider_environment("fixture", str(private))
+
+
+def test_forced_gemini_mode_requires_an_env_file(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="does not exist"):
+        RUN_LOCAL.load_provider_environment(
+            "gemini", None, default_env_file=tmp_path / ".env"
+        )
+
+
 def test_explicit_environment_parser_rejects_duplicates(tmp_path: Path) -> None:
     config = tmp_path / "operator-settings"
     config.write_text("MODE=one\nMODE=two\n", encoding="utf-8")

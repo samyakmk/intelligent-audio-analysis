@@ -1,4 +1,4 @@
-"""Strict loaders for checked-in public config and explicitly selected secrets."""
+"""Strict loaders for checked-in public config and secret-only environment files."""
 
 from __future__ import annotations
 
@@ -38,11 +38,11 @@ PRIVATE_NAME_PATTERN = re.compile(
 
 
 def load_private_environment(path_value: str) -> dict[str, str]:
-    """Parse a deliberately selected dotenv file as data, never shell code."""
+    """Parse an absolute dotenv path as data, never as shell code."""
 
     path = Path(path_value).expanduser()
     if not path.is_absolute():
-        raise SystemExit("--env-file must be an absolute path; no implicit .env is allowed")
+        raise SystemExit("--env-file must be an absolute path")
     if not path.is_file():
         raise SystemExit("the explicitly selected environment file does not exist")
     values: dict[str, str] = {}

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Run the local FastAPI + Expo web profile.
 
-The safe default never loads dotenv.  An operator can explicitly nominate an
-absolute secret-file path for a configured local run. Public behavior comes from
-config/pocket.json; secrets are parsed as data (never sourced as shell code), and
-server-only values are not passed to the Expo process.
+The launcher reads the repository's ignored, secret-only .env when it exists.
+A configured Gemini key activates Gemini automatically; otherwise the run stays on
+the zero-account fixture provider. Public behavior comes from config/pocket.json,
+secrets are parsed as data (never sourced as shell code), and server-only values are
+not passed to the Expo process.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 API_DIR = ROOT / "services" / "api"
 CLIENT_DIR = ROOT / "apps" / "client"
 LOCAL_DIR = ROOT / ".local"
+DEFAULT_ENV_FILE = ROOT / ".env"
 # Kept as a compatibility export for launcher tests and downstream tooling.
 GEMINI_LOCAL_ENV_KEYS = PRIVATE_ENV_KEYS
 LOCAL_API_PRIVATE_KEYS = {
@@ -87,6 +89,44 @@ BASELINE_RECORDING_COLUMN_MARKERS = {
 
 
 load_explicit_environment = load_private_environment
+
+
+def gemini_key_is_configured(value: str | None) -> bool:
+    """Treat blank/example values as absent while surfacing malformed real keys."""
+
+    normalized = (value or "").strip().casefold()
+    return bool(normalized) and not normalized.startswith("<") and "replace-me" not in normalized
+
+
+def load_provider_environment(
+    provider_mode: str,
+    env_file: str | None,
+    *,
+    default_env_file: Path = DEFAULT_ENV_FILE,
+) -> tuple[str, dict[str, str], Path | None]:
+    """Resolve auto/fixture/Gemini mode and return API-only private settings."""
+
+    if provider_mode == "fixture":
+        if env_file:
+            raise SystemExit("--env-file cannot be combined with --provider-mode fixture")
+        return "fixture", {}, None
+
+    selected_path = Path(env_file).expanduser() if env_file else default_env_file
+    if not selected_path.is_absolute():
+        raise SystemExit("--env-file must be an absolute path")
+    if not selected_path.is_file():
+        if provider_mode == "gemini" or env_file:
+            raise SystemExit(f"private environment file does not exist: {selected_path}")
+        return "fixture", {}, None
+
+    selected = load_explicit_environment(str(selected_path))
+    validate_private_environment(selected)
+    configured = {
+        key: value for key, value in selected.items() if key in LOCAL_API_PRIVATE_KEYS
+    }
+    if provider_mode == "gemini" or gemini_key_is_configured(configured.get("GEMINI_API_KEY")):
+        return "gemini", configured, selected_path
+    return "fixture", {}, selected_path
 
 
 def command_or_fail(name: str) -> str:
@@ -167,7 +207,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Pocket API and universal web client")
     parser.add_argument(
         "--env-file",
-        help="absolute path to an explicitly selected secret-only environment file",
+        help="absolute secret-only environment path (defaults to the repository .env)",
     )
     parser.add_argument(
         "--config-file",
@@ -176,9 +216,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--provider-mode",
-        choices=("fixture", "gemini"),
-        default="fixture",
-        help="provider route to activate; defaults to the zero-account fixture route",
+        choices=("auto", "fixture", "gemini"),
+        default="auto",
+        help="provider route; auto enables Gemini when .env has GEMINI_API_KEY",
     )
     args = parser.parse_args()
     venv_python = API_DIR / ".venv" / "bin" / "python"
@@ -216,9 +256,11 @@ def main() -> int:
         "EXPO_PUBLIC_API_URL": "http://localhost:8000",
         "EXPO_PUBLIC_DEMO_MODE": "true",
     }
-    if args.provider_mode == "fixture":
-        if args.env_file:
-            raise SystemExit("--env-file is accepted only with --provider-mode gemini")
+    provider_mode, configured, selected_env_path = load_provider_environment(
+        args.provider_mode,
+        args.env_file,
+    )
+    if provider_mode == "fixture":
         environment.update(local_defaults)
         environment.update(
             {
@@ -227,13 +269,6 @@ def main() -> int:
             }
         )
     else:
-        if not args.env_file:
-            raise SystemExit("Gemini mode requires --env-file with an absolute private path")
-        selected = load_explicit_environment(args.env_file)
-        validate_private_environment(selected)
-        configured = {
-            key: value for key, value in selected.items() if key in LOCAL_API_PRIVATE_KEYS
-        }
         environment.update(local_defaults)
         environment.update(configured)
         environment["PROVIDER_MODE"] = "gemini"
@@ -311,10 +346,17 @@ def main() -> int:
             )
         )
         print("Pocket Demo starting: web http://localhost:8081, API http://localhost:8000")
-        if args.provider_mode == "fixture":
-            print("Fixture mode is active; no remote provider calls are allowed.")
+        if provider_mode == "fixture":
+            if args.provider_mode == "fixture":
+                print("Fixture mode was explicitly selected.")
+            elif selected_env_path is None:
+                print("Fixture mode is active; no .env with a Gemini key was found.")
+            else:
+                print("Fixture mode is active; .env has no configured Gemini key.")
+            print("Remote provider calls are disabled.")
         else:
-            print("Gemini mode is active; only the API process received private settings.")
+            print("Gemini mode is active from the private .env configuration.")
+            print("Only the API process received private settings.")
 
         while not shutting_down:
             for process in processes:

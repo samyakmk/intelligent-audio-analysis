@@ -11,8 +11,8 @@ Run commands from `services/api` with the service virtual environment:
 .venv/bin/python -m alembic check
 ```
 
-From the repository root, the equivalent shortcuts are `make migrate`,
-`make migration-current`, and `make migration-check`.
+From the repository root, the equivalent commands are `npm run migrate`,
+`npm run migration:current`, and `npm run migration:check`.
 
 The migration environment reads `DATABASE_URL` from the process environment only.
 It never searches for or loads dotenv files. If `DATABASE_URL` is absent, the local

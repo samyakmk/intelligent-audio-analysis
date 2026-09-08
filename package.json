@@ -8,13 +8,30 @@
     "npm": ">=10"
   },
   "scripts": {
-    "web": "EXPO_NO_DOTENV=1 npm --prefix apps/client run web",
-    "export:web": "EXPO_NO_DOTENV=1 npm --prefix apps/client run export",
-    "prebuild": "EXPO_NO_DOTENV=1 npm --prefix apps/client run prebuild -- --no-install",
-    "test": "npm run test:client",
+    "setup": "sh scripts/setup.sh",
+    "start": "python3.12 scripts/run_local.py",
+    "dev": "npm start",
+    "start:fixture": "python3.12 scripts/run_local.py --provider-mode fixture",
+    "fixtures": "python3.12 scripts/generate_fixture_wav.py --check && python3.12 scripts/verify_fixture_corpus.py && python3.12 scripts/verify_env_example.py",
+    "test": "npm run fixtures && npm run test:backend && npm run test:client",
+    "test:backend": "cd services/api && PROVIDER_MODE=fixture ALLOW_REMOTE_PROVIDER_CALLS=false FIXTURE_ROOT=../../fixtures .venv/bin/python -m pytest",
     "test:client": "EXPO_NO_DOTENV=1 npm --prefix apps/client test",
-    "lint": "npm run lint:client && npm run typecheck",
+    "lint": "npm run lint:backend && npm run lint:client && npm run typecheck",
+    "lint:backend": "services/api/.venv/bin/python -m ruff check services/api/app services/api/tests services/api/alembic",
     "lint:client": "EXPO_NO_DOTENV=1 npm --prefix apps/client run lint",
-    "typecheck": "EXPO_NO_DOTENV=1 npm --prefix apps/client run typecheck"
+    "typecheck": "EXPO_NO_DOTENV=1 npm --prefix apps/client run typecheck",
+    "check": "npm test && npm run lint && npm run export:web",
+    "web": "python3.12 scripts/with_config.py -- npm --prefix apps/client run web",
+    "export:web": "python3.12 scripts/with_config.py -- npm --prefix apps/client run export",
+    "prebuild": "python3.12 scripts/with_config.py -- npm --prefix apps/client run prebuild -- --no-install",
+    "migrate": "mkdir -p services/api/data && cd services/api && .venv/bin/python -m alembic upgrade head",
+    "migration:current": "cd services/api && .venv/bin/python -m alembic current",
+    "migration:check": "cd services/api && .venv/bin/python -m alembic check",
+    "compose:config": "python3.12 scripts/compose.py config --quiet",
+    "compose:up": "npm run fixtures && npm run compose:config && python3.12 scripts/compose.py up --build",
+    "compose:down": "python3.12 scripts/compose.py down",
+    "compose:logs": "python3.12 scripts/compose.py logs --follow",
+    "compose:config:configured": "python3.12 scripts/compose.py --env-file \"$ENV_FILE\" config --quiet",
+    "compose:up:configured": "python3.12 scripts/compose.py --env-file \"$ENV_FILE\" up --build"
   }
 }
