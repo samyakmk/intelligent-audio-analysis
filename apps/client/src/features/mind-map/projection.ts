@@ -101,7 +101,7 @@ export function mindMapToMarkdown(map: MindMapProjection): string {
   const lines = [`# ${map.title}`, '', `_${map.nodeCount} topic${map.nodeCount === 1 ? '' : 's'} projected from canonical intelligence._`, ''];
   const append = (node: MindMapNode, depth: number) => {
     const firstCitation = node.evidence[0];
-    const source = firstCitation ? ` — source ${formatTimestamp(firstCitation.start_ms)}` : '';
+    const source = firstCitation ? `; source ${formatTimestamp(firstCitation.start_ms)}` : '';
     lines.push(`${'  '.repeat(depth)}- ${node.label}${source}`);
     node.children.forEach((child) => append(child, depth + 1));
   };

@@ -1,7 +1,7 @@
 import type { Citation, RecordingState } from '@/types/api';
 
 export function formatBytes(value?: number): string {
-  if (value === undefined || Number.isNaN(value)) return '—';
+  if (value === undefined || Number.isNaN(value)) return 'Not available';
   if (value === 0) return '0 B';
   const units = ['B', 'KiB', 'MiB', 'GiB'];
   const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
@@ -9,7 +9,7 @@ export function formatBytes(value?: number): string {
 }
 
 export function formatDuration(milliseconds?: number): string {
-  if (milliseconds === undefined || !Number.isFinite(milliseconds)) return '—';
+  if (milliseconds === undefined || !Number.isFinite(milliseconds)) return 'Not available';
   const total = Math.max(0, Math.round(milliseconds / 1000));
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
@@ -20,7 +20,7 @@ export function formatDuration(milliseconds?: number): string {
 }
 
 export function formatMoney(value?: number, precision = 3): string {
-  if (value === undefined || Number.isNaN(value)) return '—';
+  if (value === undefined || Number.isNaN(value)) return 'Not available';
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
@@ -30,7 +30,7 @@ export function formatMoney(value?: number, precision = 3): string {
 }
 
 export function formatDate(value?: string, includeTime = false): string {
-  if (!value) return '—';
+  if (!value) return 'Not available';
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) return value;
   return new Intl.DateTimeFormat('en-US', {

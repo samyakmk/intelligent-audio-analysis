@@ -125,7 +125,7 @@ export default function AskScreen() {
               <View style={styles.welcome}>
                 <View style={styles.askMark}><MaterialCommunityIcons name="message-processing-outline" size={31} color={colors.coralDark} /></View>
                 <Text style={styles.welcomeTitle}>Ask only what the evidence can answer</Text>
-                <Text style={styles.welcomeBody}>The assistant will cite the source moment—or explicitly abstain when accessible evidence is insufficient.</Text>
+                <Text style={styles.welcomeBody}>The assistant will cite the source moment or explicitly abstain when accessible evidence is insufficient.</Text>
                 <View style={styles.suggestions}>
                   {['What are the unresolved decisions?', 'Who owns the next steps?', 'Summarize risks with evidence'].map((item) => (
                     <Chip key={item} label={item} onPress={() => setDraft(item)} />

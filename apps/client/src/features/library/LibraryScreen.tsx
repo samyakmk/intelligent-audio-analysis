@@ -87,7 +87,7 @@ export default function LibraryScreen() {
     <AppShell>
       <PageTitle
         title="Your audio, made useful"
-        subtitle="Canonical recordings stay separate from transcripts, intelligence, and search indexes—so a failure never erases work that is already ready."
+        subtitle="Canonical recordings stay separate from transcripts, intelligence, and search indexes, so a failure never erases work that is already ready."
         action={<Button icon="plus" onPress={() => router.push('/upload')}>Upload audio</Button>}
       />
 

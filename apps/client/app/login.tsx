@@ -5,7 +5,6 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandMark, Button, Notice } from '@/components/ui';
-import { API_BASE_URL } from '@/lib/api';
 import { useSession } from '@/providers/SessionProvider';
 import { colors, font, radius, shadow, spacing } from '@/theme';
 
@@ -72,7 +71,7 @@ export default function LoginScreen() {
               Turn every recording into evidence you can trust.
             </Text>
             <Text style={styles.heroBody}>
-              Upload audio once. Trace every summary, decision, and task back to the exact moment it came from—while seeing what each stage costs.
+              Upload audio once. Trace every summary, decision, and task back to the exact moment it came from while seeing what each stage costs.
             </Text>
           </View>
           <View style={styles.promiseRow}>
@@ -116,7 +115,6 @@ export default function LoginScreen() {
             </Pressable>
           </View>
           <Button size="lg" loading={loading} onPress={submit} icon="arrow-right">Enter evidence lab</Button>
-          <Text style={styles.endpoint}>Connecting to {API_BASE_URL}</Text>
           <View style={styles.disclosure}>
             <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.green} />
             <Text style={styles.disclosureText}>Use synthetic or approved audio until provider terms are configured and accepted.</Text>
@@ -161,7 +159,6 @@ const styles = StyleSheet.create({
   identityName: { color: colors.ink, fontFamily: font.medium, fontSize: 14 },
   identityRole: { color: colors.coralDark, fontSize: 11 },
   identityDetail: { color: colors.inkMuted, fontSize: 10, lineHeight: 14, marginTop: 2 },
-  endpoint: { color: colors.inkFaint, fontFamily: font.mono, fontSize: 9, textAlign: 'center' },
   disclosure: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
   disclosureText: { flex: 1, color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
   pressed: { opacity: 0.72 },

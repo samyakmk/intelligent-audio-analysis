@@ -60,7 +60,7 @@ describe('deterministic mind map projection', () => {
     const map = buildMindMap('Design review', [topic('Architecture'), topic('API', 'Architecture', 65_000)]);
 
     expect(mindMapToMarkdown(map)).toBe(
-      '# Design review\n\n_2 topics projected from canonical intelligence._\n\n- Architecture — source 0:00\n  - API — source 1:05\n',
+      '# Design review\n\n_2 topics projected from canonical intelligence._\n\n- Architecture; source 0:00\n  - API; source 1:05\n',
     );
   });
 });

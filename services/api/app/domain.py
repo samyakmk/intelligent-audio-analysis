@@ -3257,7 +3257,7 @@ def _export_tasks(tasks: list[ActionItem], export_format: str) -> tuple[bytes, s
         lines = ["# Intelligent Audio Analysis tasks export", ""]
         for item in values:
             marker = "x" if item["status"] in {"done", "completed"} else " "
-            owner = f" — {item['owner']}" if item["owner"] else ""
+            owner = f"; {item['owner']}" if item["owner"] else ""
             lines.append(f"- [{marker}] {item['task']}{owner}")
         return "\n".join(lines).encode(), "text/markdown", "intelligent-audio-analysis-tasks.md"
     if export_format == "csv":

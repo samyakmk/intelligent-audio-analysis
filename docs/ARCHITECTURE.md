@@ -102,8 +102,8 @@ boundaries, not separately deployed microservices.
   base URL/rate catalog, nonzero reservation admission, and the remote-call gate.
   Embeddings remain unconfigured, so Search retrieval is still lexical.
 
-Non-generative helpers—lexical ranking, extractive cited answers, projections, and
-exports—run locally; they are components, not a selectable `PROVIDER_MODE`.
+Non-generative helpers such as lexical ranking, extractive cited answers, projections,
+and exports run locally; they are components, not a selectable `PROVIDER_MODE`.
 
 Provider selection is policy, not a UI concern. Stable aliases (`speech.standard`,
 `speech.strong`, `llm.cheap`, `llm.strong`, and `embed.multilingual`) resolve to exact

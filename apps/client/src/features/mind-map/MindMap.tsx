@@ -42,7 +42,7 @@ export function MindMap({
     <Card style={styles.card}>
       <SectionTitle
         title="Topic mind map"
-        subtitle="A deterministic projection of canonical topics—opening or exporting it never calls the LLM."
+        subtitle="A deterministic projection of canonical topics. Opening or exporting it never calls the LLM."
         action={map.nodeCount ? <Button size="sm" variant="secondary" icon="download-outline" loading={exporting} onPress={exportMarkdown}>Markdown</Button> : undefined}
       />
       {error ? <Notice tone="error" title="Mind map export failed">{error.message}</Notice> : null}
