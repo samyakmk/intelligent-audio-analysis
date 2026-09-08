@@ -18,6 +18,7 @@ from app.models import (
     MediaGrant,
     ProcessingRun,
     Recording,
+    StageRun,
     TranscriptVersion,
 )
 from app.providers import MockFixtureLLMAdapter, MockFixtureSpeechAdapter, SpeechRequest
@@ -475,6 +476,14 @@ def test_generic_adapter_failure_releases_zero_cost_reservation(client: TestClie
     with client.app.state.database.session_factory() as db:
         run = db.get(ProcessingRun, run_id)
         assert run.status == "failed_retryable"
+        assert run.completed_at is not None
+        failed_stage = db.scalar(
+            select(StageRun).where(
+                StageRun.processing_run_id == run_id,
+                StageRun.stage == "transcribing",
+            )
+        )
+        assert failed_stage.status == "failed"
         reservation = db.scalar(
             select(BudgetReservation).where(BudgetReservation.attempt_id == f"speech:{run_id}")
         )

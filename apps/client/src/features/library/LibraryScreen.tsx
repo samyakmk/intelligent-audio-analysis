@@ -22,7 +22,7 @@ import { useResource } from '@/hooks/useResource';
 import { api, unwrapItems } from '@/lib/api';
 import { formatBytes, formatDate, formatDuration, isActiveState } from '@/lib/format';
 import { useSession } from '@/providers/SessionProvider';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, radius, shadowNone, spacing } from '@/theme';
 import type { Recording, RecordingState } from '@/types/api';
 
 const filters: { label: string; value?: RecordingState }[] = [
@@ -212,12 +212,13 @@ function RecordingCard({
   const readyCount = Object.values(recording.readiness).filter(Boolean).length;
   const issue = recording.issues?.[0];
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Open ${recording.title}`}
-      onPress={onOpen}
-      style={({ pressed }) => [styles.recordingCard, { width } as object, pressed && styles.recordingCardActive]}
-    >
+    <View style={[styles.recordingCard, { width } as object]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${recording.title}`}
+        onPress={onOpen}
+        style={({ pressed }) => [styles.recordingCardOpen, pressed && styles.recordingCardActive]}
+      >
       <View style={uiStyles.rowBetween}>
         <StatusBadge state={recording.state} />
         {recording.is_fixture ? <Chip label="Fixture" icon="flask-outline" /> : <Text style={styles.date}>{formatDate(recording.created_at)}</Text>}
@@ -265,6 +266,7 @@ function RecordingCard({
           </Text>
         </View>
       ) : null}
+      </Pressable>
       <View style={styles.cardFooter}>
         <Text style={styles.expiry}>Retention target {formatDate(recording.expires_at)}</Text>
         {recording.state === 'failed_retryable' || (recording.state === 'partial' && issue?.retryable) ? (
@@ -274,7 +276,6 @@ function RecordingCard({
             icon="refresh"
             loading={retrying}
             onPress={(event) => {
-              event.stopPropagation();
               onRetry();
             }}
           >
@@ -284,13 +285,13 @@ function RecordingCard({
           <MaterialCommunityIcons name="arrow-right" size={18} color={colors.inkFaint} />
         )}
       </View>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   metrics: { flexDirection: 'row', gap: spacing.lg, flexWrap: 'wrap' },
-  metricCard: { flex: 1, minWidth: 220, gap: spacing.sm, padding: spacing.lg, shadowOpacity: 0 },
+  metricCard: { flex: 1, minWidth: 220, gap: spacing.sm, padding: spacing.lg, ...shadowNone },
   retentionCard: { minWidth: 260 },
   metricIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.pineSoft, alignItems: 'center', justifyContent: 'center' },
   metricIconBlue: { backgroundColor: colors.blueSoft },
@@ -308,7 +309,8 @@ const styles = StyleSheet.create({
   skeletonCard: { minHeight: 290, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted },
   recordingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.lg },
   recordingCard: { minWidth: 250, minHeight: 290, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.lg, backgroundColor: colors.surface, gap: spacing.lg },
-  recordingCardActive: { borderColor: colors.borderStrong, transform: [{ translateY: -2 }] },
+  recordingCardOpen: { flex: 1, gap: spacing.lg },
+  recordingCardActive: { opacity: 0.78 },
   date: { color: colors.inkFaint, fontSize: 10 },
   recordingMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   fileIcon: { width: 47, height: 47, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.coralSoft },

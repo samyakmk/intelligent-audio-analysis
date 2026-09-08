@@ -32,7 +32,7 @@ import { formatBytes } from '@/lib/format';
 import { pickAudio, readAudio, sha256, type PickedAudio } from '@/platform/files';
 import { useSession } from '@/providers/SessionProvider';
 import { useCapabilities } from '@/providers/CapabilitiesProvider';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, radius, shadowNone, spacing } from '@/theme';
 import type { UploadSession } from '@/types/api';
 
 const MAX_BYTES = 500 * 1024 * 1024;
@@ -381,13 +381,13 @@ const styles = StyleSheet.create({
   approvalText: { flex: 1, color: colors.ink, fontSize: 12, lineHeight: 19 },
   submitRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
   sidebar: { width: '100%', maxWidth: 330, gap: spacing.lg },
-  guardrailCard: { gap: spacing.lg, shadowOpacity: 0 },
+  guardrailCard: { gap: spacing.lg, ...shadowNone },
   sideTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 16 },
   sideBody: { color: colors.inkMuted, fontSize: 11, lineHeight: 17 },
   guardrailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   guardrailIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.pineSoft, alignItems: 'center', justifyContent: 'center' },
   guardrailText: { color: colors.inkMuted, fontSize: 12 },
-  quotaCard: { gap: spacing.md, shadowOpacity: 0 },
+  quotaCard: { gap: spacing.md, ...shadowNone },
   quotaLabel: { color: colors.inkMuted, fontSize: 11 },
   quotaValue: { color: colors.ink, fontFamily: font.medium, fontSize: 12 },
 });

@@ -28,7 +28,7 @@ import { canUseDeepIntelligence } from '@/features/capabilities/capabilities';
 import { api, unwrapItems } from '@/lib/api';
 import { downloadText, downloadUrl } from '@/platform/download';
 import { formatBytes, formatDate, formatDuration, formatMoney, isActiveState } from '@/lib/format';
-import { colors, font, spacing } from '@/theme';
+import { colors, font, shadowNone, spacing } from '@/theme';
 import { useCapabilities } from '@/providers/CapabilitiesProvider';
 import type {
   Citation,
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
   meta: { color: colors.inkMuted, fontSize: 11 },
   dot: { width: 3, height: 3, borderRadius: 2, backgroundColor: colors.borderStrong },
   headerActions: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  readinessCard: { gap: spacing.lg, shadowOpacity: 0 },
+  readinessCard: { gap: spacing.lg, ...shadowNone },
   assetGrid: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   asset: { flex: 1, minWidth: 150, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, position: 'relative' },
   assetIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
@@ -711,7 +711,7 @@ const styles = StyleSheet.create({
   segmentCount: { color: colors.inkFaint, fontSize: 9 },
   intelligenceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xl },
   costMetrics: { flexDirection: 'row', gap: spacing.lg, flexWrap: 'wrap' },
-  costMetric: { flex: 1, minWidth: 190, gap: spacing.sm, shadowOpacity: 0 },
+  costMetric: { flex: 1, minWidth: 190, gap: spacing.sm, ...shadowNone },
   costMetricLabel: { color: colors.inkMuted, fontSize: 11 },
   costMetricValue: { color: colors.ink, fontFamily: font.medium, fontSize: 25, letterSpacing: -0.6 },
   costEvent: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border, flexWrap: 'wrap' },

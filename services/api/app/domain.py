@@ -1020,12 +1020,25 @@ def process_run(
             ):
                 run.status = "failed_retryable"
                 run.failure_code = "provider_unavailable"
+                run.completed_at = utcnow()
                 run.lease_owner = None
                 run.lease_expires_at = None
                 recording.status = "PARTIAL" if recording.transcript_ready else "FAILED_RETRYABLE"
                 recording.stage = "partial" if recording.transcript_ready else "failed"
                 recording.error_code = "provider_unavailable"
                 recording.error_detail = str(exc)
+                failed_stage = (
+                    "extracting_intelligence" if recording.transcript_ready else "transcribing"
+                )
+                set_stage(
+                    db,
+                    recording,
+                    run,
+                    failed_stage,
+                    "failed",
+                    {"code": "provider_unavailable", "message": str(exc)},
+                )
+                recording.stage = "partial" if recording.transcript_ready else "failed"
                 emit_event(db, recording, "processing.retryable", {})
             db.commit()
         except Exception:
@@ -1049,12 +1062,28 @@ def process_run(
             ):
                 run.status = "failed_retryable"
                 run.failure_code = "internal_processing_error"
+                run.completed_at = utcnow()
                 run.lease_owner = None
                 run.lease_expires_at = None
                 recording.status = "PARTIAL" if recording.transcript_ready else "FAILED_RETRYABLE"
                 recording.stage = "partial" if recording.transcript_ready else "failed"
                 recording.error_code = "internal_processing_error"
                 recording.error_detail = "Mock processing failed and can be retried."
+                failed_stage = (
+                    "extracting_intelligence" if recording.transcript_ready else "transcribing"
+                )
+                set_stage(
+                    db,
+                    recording,
+                    run,
+                    failed_stage,
+                    "failed",
+                    {
+                        "code": "internal_processing_error",
+                        "message": "Processing failed and can be retried.",
+                    },
+                )
+                recording.stage = "partial" if recording.transcript_ready else "failed"
                 emit_event(db, recording, "processing.retryable", {})
             db.commit()
             # Keep content and provider payloads out of logs; caller can inspect persisted state.
@@ -2575,7 +2604,35 @@ def query_terms(value: str) -> list[str]:
         elif len(token) > 4 and token.endswith("s"):
             token = token[:-1]
         terms.append(token)
+        if token == "vendor":
+            terms.append("provider")
+        elif token == "provider":
+            terms.append("vendor")
     return terms
+
+
+def _looks_like_untrusted_instruction(text: str) -> bool:
+    normalized = normalize_text(text)
+    targets = ("ask pocket", "assistant", "language model", "system prompt")
+    directives = (
+        "should answer",
+        "must answer",
+        "ignore instructions",
+        "ignore the instructions",
+        "abstain if",
+        "respond with",
+        "do not answer",
+    )
+    return any(target in normalized for target in targets) and any(
+        directive in normalized for directive in directives
+    )
+
+
+def _sanitize_untrusted_instructions(text: str) -> str:
+    sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+    return " ".join(
+        sentence for sentence in sentences if not _looks_like_untrusted_instruction(sentence)
+    ).strip()
 
 
 def search_evidence(
@@ -2648,7 +2705,7 @@ def answer_question(
     deep: bool = False,
 ) -> AskMessage:
     structured = None
-    if not selection_segment_ids:
+    if not selection_segment_ids and not deep:
         structured = _structured_answer(
             db, workspace_id=workspace_id, question=question, recording_ids=recording_ids
         )
@@ -2656,14 +2713,20 @@ def answer_question(
         answer, citations, strategy = structured
         results = [{"citation": item} for item in citations]
     else:
-        results = search_evidence(
-            db,
-            workspace_id,
-            question,
-            recording_ids=recording_ids or None,
-            segment_ids=selection_segment_ids,
-            limit=3,
-        )
+        results = []
+        for item in search_evidence(
+                db,
+                workspace_id,
+                question,
+                recording_ids=recording_ids or None,
+                segment_ids=selection_segment_ids,
+                limit=8,
+            ):
+            sanitized = _sanitize_untrusted_instructions(item["snippet"])
+            if sanitized:
+                results.append({**item, "snippet": sanitized})
+            if len(results) == 3:
+                break
         answer = ""
         citations = []
         strategy = "deterministic_lexical_extractive"

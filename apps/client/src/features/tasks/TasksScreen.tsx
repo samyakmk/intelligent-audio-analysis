@@ -24,7 +24,7 @@ import { api, unwrapItems } from '@/lib/api';
 import { downloadText, downloadUrl } from '@/platform/download';
 import { formatDate } from '@/lib/format';
 import { useSession } from '@/providers/SessionProvider';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, radius, shadowNone, spacing } from '@/theme';
 import type { ActionTask, ExportRequest, Recap, Topic } from '@/types/api';
 
 type Tab = 'tasks' | 'insights';
@@ -235,11 +235,11 @@ function TopicMap({ topics, onSource }: { topics: Topic[]; onSource(topic: Topic
 
 const styles = StyleSheet.create({
   pageTabs: { flexDirection: 'row', gap: 6 },
-  toolbarCard: { padding: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap', shadowOpacity: 0 },
+  toolbarCard: { padding: spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.md, flexWrap: 'wrap', ...shadowNone },
   filters: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   exportButtons: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
   taskList: { gap: spacing.md },
-  taskRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg, padding: spacing.lg, shadowOpacity: 0 },
+  taskRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.lg, padding: spacing.lg, ...shadowNone },
   taskRowNarrow: { flexDirection: 'column' },
   taskSourceIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center' },
   taskCopy: { flex: 1, gap: spacing.sm },
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   recapTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 23, letterSpacing: -0.5 },
   recapDate: { color: colors.inkFaint, fontSize: 9 },
   recapSummary: { color: colors.ink, fontSize: 16, lineHeight: 26 },
-  recapControls: { width: '100%', maxWidth: 350, gap: spacing.xl, shadowOpacity: 0 },
+  recapControls: { width: '100%', maxWidth: 350, gap: spacing.xl, ...shadowNone },
   panelTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 17 },
   sectionTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 18 },
   topicMap: { gap: spacing.lg },

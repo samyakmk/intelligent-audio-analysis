@@ -58,6 +58,22 @@ export const shadow = Platform.select({
   },
 });
 
+export const shadowNone = Platform.select({
+  web: { boxShadow: 'none' } as object,
+  default: { shadowOpacity: 0, elevation: 0 },
+}) ?? {};
+
+export const menuShadow = Platform.select({
+  web: { boxShadow: '0 8px 18px rgba(0, 0, 0, 0.14)' } as object,
+  default: {
+    elevation: 8,
+    shadowColor: colors.black,
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+  },
+}) ?? {};
+
 export const font = {
   regular: Platform.select({ ios: 'System', android: 'sans-serif', default: 'system-ui' }),
   medium: Platform.select({ ios: 'System', android: 'sans-serif-medium', default: 'system-ui' }),

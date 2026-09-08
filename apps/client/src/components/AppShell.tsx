@@ -16,7 +16,7 @@ import { BrandMark, LoadingState } from '@/components/ui';
 import { formatMoney, initials } from '@/lib/format';
 import { mobileContentPadding } from '@/lib/layout';
 import { useSession } from '@/providers/SessionProvider';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, menuShadow, radius, spacing } from '@/theme';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   workspaceCopy: { flex: 1, gap: 2 },
   workspaceName: { color: colors.ink, fontFamily: font.medium, fontSize: 13 },
   workspaceRole: { color: colors.inkMuted, fontSize: 10, textTransform: 'capitalize' },
-  workspaceMenu: { position: 'absolute', top: 80, left: 0, right: 0, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 6, backgroundColor: colors.surface, elevation: 8, shadowColor: colors.black, shadowOpacity: 0.14, shadowRadius: 18, shadowOffset: { width: 0, height: 8 } },
+  workspaceMenu: { position: 'absolute', top: 80, left: 0, right: 0, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: 6, backgroundColor: colors.surface, ...menuShadow },
   workspaceMenuItem: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 10, borderRadius: radius.sm },
   workspaceMenuText: { color: colors.ink, fontSize: 13 },
   nav: { flex: 1, gap: 4 },

@@ -20,7 +20,7 @@ import { useResource } from '@/hooks/useResource';
 import { api, unwrapItems } from '@/lib/api';
 import { formatDate, formatMoney } from '@/lib/format';
 import { useSession } from '@/providers/SessionProvider';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, radius, shadowNone, spacing } from '@/theme';
 import type { CostEvent } from '@/types/api';
 
 export default function CostLabScreen() {
@@ -181,11 +181,11 @@ function CostRow({ event, wide, showUnits }: { event: CostEvent; wide: boolean; 
 }
 
 const styles = StyleSheet.create({
-  filterCard: { padding: spacing.md, shadowOpacity: 0, gap: spacing.sm },
+  filterCard: { padding: spacing.md, ...shadowNone, gap: spacing.sm },
   filterLabel: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 8, letterSpacing: 1 },
   filters: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   metrics: { flexDirection: 'row', gap: spacing.lg, flexWrap: 'wrap' },
-  metricCard: { flex: 1, minWidth: 200, gap: spacing.sm, shadowOpacity: 0 },
+  metricCard: { flex: 1, minWidth: 200, gap: spacing.sm, ...shadowNone },
   metricIcon: { width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   metricValue: { color: colors.ink, fontFamily: font.medium, fontSize: 22, letterSpacing: -0.5 },
   metricLabel: { color: colors.inkMuted, fontSize: 11 },

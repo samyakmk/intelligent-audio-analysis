@@ -22,7 +22,7 @@ import { canUseDeepAsk } from '@/features/capabilities/capabilities';
 import { ProviderPolicyNotice } from '@/features/capabilities/ProviderPolicyNotice';
 import { useSession } from '@/providers/SessionProvider';
 import { useCapabilities } from '@/providers/CapabilitiesProvider';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, radius, shadowNone, spacing } from '@/theme';
 import type { AskMessage, AskScope, AskSession } from '@/types/api';
 
 type ScopeKind = AskScope['type'];
@@ -271,7 +271,7 @@ const styles = StyleSheet.create({
   layout: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
   layoutNarrow: { flexDirection: 'column' },
   chatColumn: { flex: 1, width: '100%', minWidth: 0, gap: spacing.lg },
-  scopeBar: { padding: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, shadowOpacity: 0 },
+  scopeBar: { padding: spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, ...shadowNone },
   scopeIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   scopeIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.pineSoft, alignItems: 'center', justifyContent: 'center' },
   scopeCopy: { flex: 1, gap: 2 },
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   composerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md, flexWrap: 'wrap' },
   composerHint: { color: colors.inkFaint, fontSize: 9 },
   sendButtons: { flexDirection: 'row', gap: spacing.sm },
-  scopePanel: { width: '100%', maxWidth: 350, gap: spacing.xl, shadowOpacity: 0 },
+  scopePanel: { width: '100%', maxWidth: 350, gap: spacing.xl, ...shadowNone },
   panelTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 17 },
   recordingChoices: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   noIndexed: { color: colors.inkFaint, fontSize: 11, fontStyle: 'italic' },

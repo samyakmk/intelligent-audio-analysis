@@ -283,6 +283,15 @@ export function ProgressBar({ value, tone = 'coral' }: { value: number; tone?: '
 }
 
 export function CitationChip({ citation, onPress }: { citation: Citation; onPress?: (citation: Citation) => void }) {
+  const content = (
+    <>
+      <MaterialCommunityIcons name="play-circle-outline" size={15} color={colors.blue} />
+      <Text numberOfLines={1} style={styles.citationText}>
+        {citationLabel(citation)}
+      </Text>
+    </>
+  );
+  if (!onPress) return <View style={styles.citation}>{content}</View>;
   return (
     <Pressable
       accessibilityRole="button"
@@ -290,10 +299,7 @@ export function CitationChip({ citation, onPress }: { citation: Citation; onPres
       onPress={() => onPress?.(citation)}
       style={({ pressed }) => [styles.citation, pressed && styles.pressed]}
     >
-      <MaterialCommunityIcons name="play-circle-outline" size={15} color={colors.blue} />
-      <Text numberOfLines={1} style={styles.citationText}>
-        {citationLabel(citation)}
-      </Text>
+      {content}
     </Pressable>
   );
 }

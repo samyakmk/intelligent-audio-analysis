@@ -22,7 +22,7 @@ import { api, unwrapItems } from '@/lib/api';
 import { formatDuration } from '@/lib/format';
 import { RequestGeneration } from '@/lib/requestGeneration';
 import { useSession } from '@/providers/SessionProvider';
-import { colors, font, radius, spacing } from '@/theme';
+import { colors, font, radius, shadowNone, spacing } from '@/theme';
 import type { SearchFilters, SearchResponse } from '@/types/api';
 
 const suggestions = ['What was decided?', 'owner:unresolved', 'deadlines next week'];
@@ -187,7 +187,7 @@ export default function SearchScreen() {
                     {item.speaker ? <Text style={styles.sourceMeta}>{item.speaker}</Text> : null}
                     {item.topic ? <Text style={styles.sourceMeta}>#{item.topic}</Text> : null}
                   </View>
-                  <CitationChip citation={item.citation} onPress={() => router.push(`/recordings/${item.recording_id}?seek=${item.start_ms}`)} />
+                  <CitationChip citation={item.citation} />
                 </Pressable>
               ))}
             </View>
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   filterPanel: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.lg, gap: spacing.lg },
   filterGrid: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' },
   chipWrap: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  discoveryCard: { minHeight: 300, alignItems: 'center', justifyContent: 'center', gap: spacing.md, shadowOpacity: 0 },
+  discoveryCard: { minHeight: 300, alignItems: 'center', justifyContent: 'center', gap: spacing.md, ...shadowNone },
   discoveryIcon: { width: 64, height: 64, borderRadius: 22, backgroundColor: colors.pineSoft, alignItems: 'center', justifyContent: 'center' },
   discoveryTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 20, textAlign: 'center' },
   discoveryBody: { maxWidth: 560, color: colors.inkMuted, fontSize: 13, lineHeight: 20, textAlign: 'center' },

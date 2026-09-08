@@ -393,7 +393,7 @@ def test_dedicated_transcribe_is_preferred_for_timestamped_short_audio(
     }
 
 
-def test_dedicated_transcribe_rejects_completed_empty_audio_result(
+def test_dedicated_transcribe_falls_back_after_completed_empty_audio_result(
     tmp_path: Path,
 ) -> None:
     settings = _settings(tmp_path)
@@ -433,15 +433,41 @@ def test_dedicated_transcribe_rejects_completed_empty_audio_result(
                     },
                 }
             ),
+            _interaction(
+                {
+                    "segments": [
+                        {
+                            "id": "segment-fallback-1",
+                            "start_ms": 0,
+                            "end_ms": 1_000,
+                            "language_bcp47": "en",
+                            "speaker_cluster_id": "speaker-a",
+                            "text": "Pocket validates citations.",
+                            "confidence": 0.96,
+                        }
+                    ],
+                    "warnings": [],
+                },
+                model=settings.llm_cheap_model,
+                request_id="structured-fallback-response",
+            ),
             _json_response({}),
         ]
     )
     adapter = GeminiAdapter(settings, transport=transport, sleep=lambda _: None)
 
-    with pytest.raises(ProviderBilledFailure) as failure:
-        adapter.transcribe(replace(_speech_request(), language="en"))
+    result = adapter.transcribe(replace(_speech_request(), language="en"))
 
-    assert failure.value.provenance["failure_category"] == "transcript_validation"
+    assert result.resolved_model == settings.llm_cheap_model
+    assert result.segments[0]["text"] == "Pocket validates citations."
+    assert result.usage["provider_calls"] == 2
+    assert result.provenance["model_alias"] == "speech.cheap"
+    assert result.provenance["escalation_reason"] == (
+        "dedicated_transcript_validation_fallback"
+    )
+    assert any("recovered" in item for item in result.provenance["warnings"])
+    assert transport.calls[2]["json"]["model"] == "gemini-3.5-transcribe"
+    assert transport.calls[3]["json"]["model"] == settings.llm_cheap_model
     assert transport.calls[-1]["method"] == "DELETE"
 
 
