@@ -151,7 +151,9 @@ and `DB_NAME` produce a percent-encoded PostgreSQL URL over the Google-managed
 `/cloudsql` Unix socket. `DB_PASSWORD`, `TOKEN_SIGNING_SECRET`, and
 `GEMINI_API_KEY` belong in Secret Manager and are injected only into the server
 container. `WEB_DIST_ROOT` and `FIXTURE_ROOT` refer to container-owned paths, never
-to the source checkout. See `infra/gcp/README.md` for the release and rollback order.
+to the source checkout. `SEED_DEMO_RECORDINGS=false` keeps the hosted shared workspace
+empty across restarts; local fixture profiles retain their canonical seeded recording
+by default. See `infra/gcp/README.md` for the release and rollback order.
 
 ## Provider and data boundary
 

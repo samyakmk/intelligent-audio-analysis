@@ -33,6 +33,7 @@ The deployment supplies these non-secret variables:
 ```text
 APP_ENV=production
 DEMO_MODE=true
+SEED_DEMO_RECORDINGS=false
 COOKIE_SECURE=true
 INLINE_WORKER=true
 BLOB_STORE_BACKEND=gcs
@@ -57,6 +58,20 @@ version references. The public demo accepts remote processing only after a per-f
 approval in the upload UI and is restricted to the reviewed English,
 `synthetic-approved-only` policy lane. Public access does not make private,
 confidential, personal, or production recordings eligible for this deployment.
+The single `Test Account` has owner rights to one shared workspace, so every visitor
+using it can view, edit, export, or delete every retained recording in that workspace.
+
+## Demo data reset
+
+Pause new upload reservations before a hosted reset by temporarily setting
+`WORKSPACE_RECORDING_QUOTA=0`. The guarded `app.reset_demo_data` command requires
+`DEMO_MODE=true`, `SEED_DEMO_RECORDINGS=false`, PostgreSQL, and the exact
+`CONFIRM_RESET_DEMO_DATA` value defined by the command. It deletes each live recording
+through the normal tombstone and physical-purge lifecycle, preserves de-identified
+cost history, revokes existing demo sessions and obsolete memberships, and leaves the
+Test Account owner membership intact. Remove any one-time Cloud Run Job immediately
+after a successful execution, verify the bucket and library are empty, and then restore
+the recording quota.
 
 ## Rollback
 

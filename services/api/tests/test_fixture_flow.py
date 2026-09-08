@@ -42,7 +42,8 @@ def test_canonical_fixture_files_match_backend_contract() -> None:
 
 def test_seeded_fixture_exposes_complete_ui_contract(client: TestClient) -> None:
     csrf, session = login(client)
-    assert session["principal"]["name"] == "Alice Rivera"
+    assert session["principal"]["name"] == "Test Account"
+    assert session["workspace"]["name"] == "Test Workspace"
     assert session["workspace"]["role"] == "owner"
     assert session["workspace"]["retained_recordings"] == 1
     assert session["workspace"]["retained_bytes"] > 0
@@ -84,6 +85,24 @@ def test_seeded_fixture_exposes_complete_ui_contract(client: TestClient) -> None
     assert styles.status_code == 200
     assert styles.json()["total"] == 4
     assert csrf
+
+
+def test_only_one_demo_account_is_available(client: TestClient) -> None:
+    response = client.get("/v1/auth/demo-users")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "id": "test-account",
+                "email": "test-account@demo.invalid",
+                "display_name": "Test Account",
+            }
+        ]
+    }
+    assert client.post(
+        "/v1/auth/demo-login", json={"principal_id": "alice"}
+    ).status_code == 422
 
 
 def test_all_labeled_ask_questions_are_grounded_or_abstain(client: TestClient) -> None:

@@ -66,6 +66,7 @@ class Settings:
     fixture_root: Path = Path("fixtures")
     web_dist_root: Path | None = None
     demo_mode: bool = True
+    seed_demo_recordings: bool = True
     inline_worker: bool = True
     cookie_secure: bool = False
     cors_origins: list[str] = field(
@@ -143,6 +144,7 @@ class Settings:
                 else None
             ),
             demo_mode=_bool_env("DEMO_MODE", True),
+            seed_demo_recordings=_bool_env("SEED_DEMO_RECORDINGS", True),
             inline_worker=_bool_env("INLINE_WORKER", True),
             cookie_secure=_bool_env("COOKIE_SECURE", False),
             cors_origins=_csv_env(

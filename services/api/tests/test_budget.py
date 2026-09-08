@@ -36,7 +36,7 @@ def test_budget_reservation_is_idempotent_and_enforces_both_caps(
 ) -> None:
     login(client)
     with client.app.state.database.session_factory() as db:
-        workspace = db.get(Workspace, "workspace-alpha")
+        workspace = db.get(Workspace, "test-workspace")
         workspace.monthly_spend_limit_usd = 1.0
         db.commit()
 
@@ -123,7 +123,7 @@ def test_committed_reservation_hands_off_to_append_only_cost_ledger(
         reservation = reserve_budget(
             db,
             attempt_id="ledger-handoff",
-            workspace_id="workspace-alpha",
+            workspace_id="test-workspace",
             stage="speech",
             amount_usd=0.25,
             per_request_cap_usd=0.25,
@@ -171,7 +171,7 @@ def test_interrupted_budget_settlement_is_idempotent_and_preserves_ambiguous_spe
 ) -> None:
     login(client)
     with client.app.state.database.session_factory() as db:
-        workspace = db.get(Workspace, "workspace-alpha")
+        workspace = db.get(Workspace, "test-workspace")
         workspace.monthly_spend_limit_usd = 1.0
         db.commit()
 
@@ -282,7 +282,7 @@ def test_durable_dispatch_fence_blocks_paid_crash_replay(client: TestClient) -> 
         reservation = reserve_budget(
             db,
             attempt_id="paid-dispatch-crash",
-            workspace_id="workspace-alpha",
+            workspace_id="test-workspace",
             stage="ask",
             amount_usd=0.05,
             per_request_cap_usd=0.10,
@@ -294,7 +294,7 @@ def test_durable_dispatch_fence_blocks_paid_crash_replay(client: TestClient) -> 
             reserve_budget(
                 db,
                 attempt_id=reservation.attempt_id,
-                workspace_id="workspace-alpha",
+                workspace_id="test-workspace",
                 stage="ask",
                 amount_usd=0.05,
                 per_request_cap_usd=0.10,
@@ -318,7 +318,7 @@ def test_dispatched_reservation_can_commit_verified_usage(client: TestClient) ->
         reservation = reserve_budget(
             db,
             attempt_id="paid-dispatch-success",
-            workspace_id="workspace-alpha",
+            workspace_id="test-workspace",
             stage="intelligence",
             amount_usd=0.20,
             per_request_cap_usd=0.20,

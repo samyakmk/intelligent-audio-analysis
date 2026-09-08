@@ -12,8 +12,10 @@ not need a separate run command.
 The public Google Cloud demo is available at
 <https://intelligent-audio-analysis-119822447991.us-central1.run.app>. It uses Cloud
 Run, Cloud SQL, private Cloud Storage, Secret Manager, and server-side Gemini. Demo
-identities and workspaces are shared: use only synthetic or explicitly approved,
-non-private audio, as required by the upload confirmation.
+access uses one shared owner-level `Test Account` workspace. Recordings uploaded by
+one visitor are visible and mutable to every other visitor using that account. Use
+only synthetic or explicitly approved, non-private audio, as required by the upload
+confirmation.
 
 ## Quick start
 

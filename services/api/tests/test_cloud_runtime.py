@@ -10,7 +10,8 @@ from app.blobstore import BlobAlreadyExists, BlobNotFound, GCSBlobStore
 from app.config import Settings, database_url_from_environment
 from app.demo_fixture import load_fixture_wav
 from app.main import create_app
-from app.models import UploadSession
+from app.models import Membership, Principal, Recording, UploadSession, Workspace
+from app.reset_demo_data import CONFIRMATION, reset_demo_data, retire_current_demo_data
 
 from .conftest import login, mutation_headers
 
@@ -116,6 +117,77 @@ def test_default_fixture_path_does_not_depend_on_source_tree_depth(
     monkeypatch.delenv("FIXTURE_ROOT", raising=False)
 
     assert Settings.from_environment().fixture_root == Path("fixtures")
+
+
+def test_hosted_demo_can_start_with_one_account_and_empty_library(settings: Settings) -> None:
+    settings.seed_demo_recordings = False
+
+    with TestClient(create_app(settings)) as client:
+        csrf, session = login(client)
+        assert csrf
+        assert session["principal"]["name"] == "Test Account"
+        assert session["workspace"]["role"] == "owner"
+        assert session["workspace"]["retained_recordings"] == 0
+        assert client.get("/v1/recordings").json()["items"] == []
+
+
+def test_destructive_demo_reset_requires_exact_confirmation(
+    settings: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings.seed_demo_recordings = False
+    monkeypatch.delenv("CONFIRM_RESET_DEMO_DATA", raising=False)
+
+    with pytest.raises(RuntimeError, match="exact reset confirmation"):
+        reset_demo_data(settings)
+
+    assert CONFIRMATION == "delete-current-recordings-and-revoke-old-demo-access"
+
+
+def test_demo_retirement_uses_recording_lifecycle_and_preserves_test_owner(
+    settings: Settings,
+) -> None:
+    with TestClient(create_app(settings)) as client:
+        csrf, _ = login(client)
+        assert csrf
+        with client.app.state.database.session_factory() as session:
+            session.add(
+                Principal(id="retired-account", email="retired@demo.invalid", display_name="Old")
+            )
+            session.add(Workspace(id="retired-workspace", name="Old", timezone="UTC"))
+            session.flush()
+            session.add(
+                Membership(
+                    principal_id="retired-account",
+                    workspace_id="retired-workspace",
+                    role="owner",
+                )
+            )
+            session.commit()
+
+        deleted, revoked = retire_current_demo_data(
+            client.app.state.database, client.app.state.blob_store
+        )
+        assert (deleted, revoked) == (1, 1)
+
+        with client.app.state.database.session_factory() as session:
+            recording = session.get(Recording, "demo-recording-test")
+            assert recording.status == "DELETED"
+            assert recording.deleted_at is not None
+            assert session.get(
+                Membership,
+                {"principal_id": "test-account", "workspace_id": "test-workspace"},
+            ) is not None
+            assert session.get(
+                Membership,
+                {"principal_id": "retired-account", "workspace_id": "retired-workspace"},
+            ) is None
+        assert client.get("/v1/auth/demo-users").json()["items"] == [
+            {
+                "id": "test-account",
+                "email": "test-account@demo.invalid",
+                "display_name": "Test Account",
+            }
+        ]
 
 
 def test_gcs_blob_contract_preserves_immutable_objects_and_promotes() -> None:

@@ -72,7 +72,7 @@ def test_approval_migration_backfills_only_checked_in_fixture_rows(
             etag_version, cancel_requested, created_at, updated_at,
             retention_expires_at
         ) VALUES (
-            ?, 'workspace-alpha', 'alice', ?, ?, 'audio/wav', 'en', 'standard',
+            ?, 'test-workspace', 'test-account', ?, ?, 'audio/wav', 'en', 'standard',
             '[]', '[]', 'standard', ?, 'READY', 'ready', 1, 1, 1, 1,
             0, 1, 1, 1, 0, '2026-09-07 00:00:00', '2026-09-07 00:00:00',
             '2026-10-07 00:00:00'

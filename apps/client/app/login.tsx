@@ -9,17 +9,19 @@ import { API_BASE_URL } from '@/lib/api';
 import { useSession } from '@/providers/SessionProvider';
 import { colors, font, radius, shadow, spacing } from '@/theme';
 
-const identities = [
-  { id: 'alice', name: 'Alice Rivera', role: 'Workspace owner', detail: 'Can upload, edit, export, and inspect costs.', initials: 'AR' },
-  { id: 'bob', name: 'Bob Chen', role: 'Research analyst', detail: 'A second principal for testing workspace isolation.', initials: 'BC' },
-];
+const identity = {
+  id: 'test-account',
+  name: 'Test Account',
+  role: 'Workspace Owner',
+  detail: 'Shared public demo access with upload, edit, export, deletion, and cost rights.',
+  initials: 'TA',
+};
 
 export default function LoginScreen() {
   const { session, loading, error: sessionError, login } = useSession();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [selected, setSelected] = useState(identities[0]?.id ?? 'alice');
   const [error, setError] = useState<Error>();
 
   if (session) return <Redirect href="/" />;
@@ -27,7 +29,7 @@ export default function LoginScreen() {
   const submit = async () => {
     setError(undefined);
     try {
-      await login(selected);
+      await login(identity.id);
       router.replace('/');
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error('Demo login failed'));
@@ -69,35 +71,28 @@ export default function LoginScreen() {
         <View style={styles.loginCard}>
           <View style={styles.cardTitleArea}>
             <Text style={styles.cardKicker}>DEMO ACCESS</Text>
-            <Text style={styles.cardTitle}>Choose a demo identity</Text>
-            <Text style={styles.cardBody}>Sessions and workspace access are still enforced by the API.</Text>
+            <Text style={styles.cardTitle}>Use the shared test account</Text>
+            <Text style={styles.cardBody}>Everyone using this public account shares one owner-level workspace.</Text>
           </View>
           {(error ?? sessionError) ? (
             <Notice tone="error" title="Could not sign in">{(error ?? sessionError)?.message}</Notice>
           ) : null}
-          <View style={styles.identityList} accessibilityRole="radiogroup">
-            {identities.map((identity) => {
-              const active = identity.id === selected;
-              return (
-                <Pressable
-                  key={identity.id}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: active }}
-                  onPress={() => setSelected(identity.id)}
-                  style={({ pressed }) => [styles.identity, active && styles.identityActive, pressed && styles.pressed]}
-                >
-                  <View style={[styles.identityAvatar, active && styles.identityAvatarActive]}>
-                    <Text style={[styles.identityInitials, active && styles.identityInitialsActive]}>{identity.initials}</Text>
-                  </View>
-                  <View style={styles.identityCopy}>
-                    <Text style={styles.identityName}>{identity.name}</Text>
-                    <Text style={styles.identityRole}>{identity.role}</Text>
-                    <Text style={styles.identityDetail}>{identity.detail}</Text>
-                  </View>
-                  <MaterialCommunityIcons name={active ? 'radiobox-marked' : 'radiobox-blank'} size={20} color={active ? colors.coral : colors.borderStrong} />
-                </Pressable>
-              );
-            })}
+          <View style={styles.identityList}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={submit}
+              style={({ pressed }) => [styles.identity, styles.identityActive, pressed && styles.pressed]}
+            >
+              <View style={[styles.identityAvatar, styles.identityAvatarActive]}>
+                <Text style={[styles.identityInitials, styles.identityInitialsActive]}>{identity.initials}</Text>
+              </View>
+              <View style={styles.identityCopy}>
+                <Text style={styles.identityName}>{identity.name}</Text>
+                <Text style={styles.identityRole}>{identity.role}</Text>
+                <Text style={styles.identityDetail}>{identity.detail}</Text>
+              </View>
+              <MaterialCommunityIcons name="account-arrow-right-outline" size={20} color={colors.coral} />
+            </Pressable>
           </View>
           <Button size="lg" loading={loading} onPress={submit} icon="arrow-right">Enter evidence lab</Button>
           <Text style={styles.endpoint}>Connecting to {API_BASE_URL}</Text>

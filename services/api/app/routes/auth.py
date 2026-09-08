@@ -19,6 +19,7 @@ from ..auth import (
 from ..database import get_db
 from ..models import DemoSession, Membership, Principal, utcnow
 from ..schemas import LoginRequest, WorkspaceSwitchRequest
+from ..seed import DEMO_PRINCIPALS
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -27,7 +28,10 @@ router = APIRouter(prefix="/v1/auth", tags=["auth"])
 def demo_users(request: Request, db: Session = Depends(get_db)) -> dict[str, object]:
     if not request.app.state.settings.demo_mode:
         raise HTTPException(status_code=404, detail="Not found")
-    principals = db.scalars(select(Principal).order_by(Principal.id)).all()
+    allowed_ids = [item["id"] for item in DEMO_PRINCIPALS]
+    principals = db.scalars(
+        select(Principal).where(Principal.id.in_(allowed_ids)).order_by(Principal.id)
+    ).all()
     return {
         "items": [
             {"id": item.id, "email": item.email, "display_name": item.display_name}

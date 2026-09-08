@@ -331,10 +331,7 @@ def seed_demo_recordings(
         return
     fixture_bytes = load_fixture_wav(settings.fixture_root)
     probe = validate_audio(fixture_bytes, settings)
-    seeds = (
-        ("demo-recording-alpha", "workspace-alpha", "alice"),
-        ("demo-recording-beta", "workspace-beta", "bob"),
-    )
+    seeds = (("demo-recording-test", "test-workspace", "test-account"),)
     run_ids: list[str] = []
     with database.session_factory() as db:
         for recording_id, workspace_id, principal_id in seeds:

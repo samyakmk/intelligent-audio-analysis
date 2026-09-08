@@ -6,7 +6,9 @@
 - A zero-account local profile and a production-shaped Compose profile.
 - A portable same-origin Cloud Run image and native Google Cloud Storage adapter with
   origin-bound resumable browser uploads and workload identity.
-- Demo authentication, two seeded workspaces, and server-derived workspace scoping.
+- Demo authentication with one shared owner-level Test Account workspace and
+  server-derived workspace scoping. The hosted library starts empty; local fixture
+  profiles retain one deterministic seeded recording.
 - Validated immutable upload flow, byte-fidelity media access, lifecycle/status, retry,
   cancellation, and deletion fencing.
 - Fixture-backed transcript and intelligence artifacts with citations and provenance.

@@ -10,7 +10,7 @@ class StrictModel(BaseModel):
 
 
 class LoginRequest(StrictModel):
-    principal_id: Literal["alice", "bob"] = "alice"
+    principal_id: Literal["test-account"] = "test-account"
 
 
 class WorkspaceSwitchRequest(StrictModel):

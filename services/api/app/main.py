@@ -97,13 +97,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 db,
                 monthly_spend_limit_usd=resolved.workspace_monthly_cost_ceiling_usd,
             )
-        seed_demo_recordings(
-            database,
-            blob_store,
-            seed_speech_adapter,
-            seed_llm_adapter,
-            resolved,
-        )
+        if resolved.seed_demo_recordings:
+            seed_demo_recordings(
+                database,
+                blob_store,
+                seed_speech_adapter,
+                seed_llm_adapter,
+                resolved,
+            )
         if resolved.inline_worker:
             retention_maintenance.run_if_due(force=True)
         yield

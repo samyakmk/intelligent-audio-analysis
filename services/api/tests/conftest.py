@@ -30,7 +30,7 @@ def client(settings: Settings) -> Iterator[TestClient]:
         yield value
 
 
-def login(client: TestClient, principal_id: str = "alice") -> tuple[str, dict]:
+def login(client: TestClient, principal_id: str = "test-account") -> tuple[str, dict]:
     response = client.post("/v1/auth/demo-login", json={"principal_id": principal_id})
     assert response.status_code == 200, response.text
     payload = response.json()

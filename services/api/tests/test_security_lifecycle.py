@@ -20,6 +20,7 @@ from app.models import (
     Recording,
     StageRun,
     TranscriptVersion,
+    Workspace,
 )
 from app.providers import MockFixtureLLMAdapter, MockFixtureSpeechAdapter, SpeechRequest
 
@@ -33,15 +34,18 @@ def fixture_recording_id(client: TestClient) -> str:
 
 
 def test_csrf_and_workspace_isolation_fail_closed(client: TestClient) -> None:
-    csrf, _ = login(client, "alice")
-    alpha_recording = fixture_recording_id(client)
-    denied_mutation = client.patch(f"/v1/recordings/{alpha_recording}", json={"title": "No CSRF"})
+    csrf, _ = login(client)
+    recording_id = fixture_recording_id(client)
+    denied_mutation = client.patch(f"/v1/recordings/{recording_id}", json={"title": "No CSRF"})
     assert denied_mutation.status_code == 403
 
-    client.post("/v1/auth/logout", headers=mutation_headers(csrf))
-    _, bob_session = login(client, "bob")
-    assert bob_session["workspace"]["id"] == "workspace-beta"
-    forbidden = client.get(f"/v1/recordings/{alpha_recording}")
+    with client.app.state.database.session_factory() as db:
+        db.add(Workspace(id="other-workspace", name="Other Workspace", timezone="UTC"))
+        recording = db.get(Recording, recording_id)
+        recording.workspace_id = "other-workspace"
+        db.commit()
+
+    forbidden = client.get(f"/v1/recordings/{recording_id}")
     nonexistent = client.get(f"/v1/recordings/{uuid.uuid4()}")
     assert forbidden.status_code == nonexistent.status_code == 404
     assert forbidden.json() == nonexistent.json()
@@ -352,7 +356,7 @@ def test_deleted_upload_idempotency_is_a_tombstone_not_resurrection(
 def test_lease_claim_is_exclusive(client: TestClient) -> None:
     database = client.app.state.database
     with database.session_factory() as db:
-        recording = db.get(Recording, "demo-recording-alpha")
+        recording = db.get(Recording, "demo-recording-test")
         run = ProcessingRun(
             id=str(uuid.uuid4()),
             recording_id=recording.id,

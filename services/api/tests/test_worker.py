@@ -26,7 +26,7 @@ def test_worker_once_bootstraps_and_drains_disposable_sqlite(
     database = Database(f"sqlite:///{database_path}")
     try:
         with database.session_factory() as session:
-            assert session.scalar(select(func.count()).select_from(Principal)) == 2
-            assert session.scalar(select(func.count()).select_from(Workspace)) == 2
+            assert session.scalar(select(func.count()).select_from(Principal)) == 1
+            assert session.scalar(select(func.count()).select_from(Workspace)) == 1
     finally:
         database.close()
