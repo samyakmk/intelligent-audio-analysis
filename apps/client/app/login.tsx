@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Redirect, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandMark, Button, Notice } from '@/components/ui';
@@ -23,6 +23,19 @@ export default function LoginScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [error, setError] = useState<Error>();
+  const [browserWidth, setBrowserWidth] = useState<number>();
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const updateBrowserWidth = () => setBrowserWidth(window.innerWidth);
+    updateBrowserWidth();
+    window.addEventListener('resize', updateBrowserWidth);
+    return () => window.removeEventListener('resize', updateBrowserWidth);
+  }, []);
+
+  const responsiveWidth = Platform.OS === 'web' ? (browserWidth ?? Number.POSITIVE_INFINITY) : width;
+  const isNarrow = responsiveWidth < 680;
+  const isCompact = responsiveWidth < 1000;
 
   if (session) return <Redirect href="/" />;
 
@@ -39,15 +52,23 @@ export default function LoginScreen() {
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={[styles.root, { paddingTop: Math.max(insets.top, 24), paddingBottom: Math.max(insets.bottom, 24) }]}
+      contentContainerStyle={[
+        styles.root,
+        {
+          paddingTop: isNarrow ? Math.max(insets.top, 24) : insets.top,
+          paddingBottom: isNarrow ? Math.max(insets.bottom, 24) : insets.bottom,
+        },
+      ]}
       keyboardShouldPersistTaps="handled"
+      scrollEnabled={isNarrow}
+      showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.layout, width < 800 && styles.layoutNarrow]}>
-        <View style={styles.story}>
+      <View style={[styles.layout, isCompact && styles.layoutCompact, isNarrow && styles.layoutNarrow]}>
+        <View style={[styles.story, isCompact && styles.storyCompact]}>
           <BrandMark />
           <View style={styles.storyCopy}>
             <Text style={styles.kicker}>CANONICAL EVIDENCE · SELECTIVE AI · VISIBLE COST</Text>
-            <Text accessibilityRole="header" style={[styles.hero, width < 540 && styles.heroSmall]}>
+            <Text accessibilityRole="header" style={[styles.hero, isCompact && styles.heroCompact, responsiveWidth < 540 && styles.heroSmall]}>
               Turn every recording into evidence you can trust.
             </Text>
             <Text style={styles.heroBody}>
@@ -68,7 +89,7 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        <View style={styles.loginCard}>
+        <View style={[styles.loginCard, isNarrow && styles.loginCardNarrow]}>
           <View style={styles.cardTitleArea}>
             <Text style={styles.cardKicker}>DEMO ACCESS</Text>
             <Text style={styles.cardTitle}>Use the shared test account</Text>
@@ -108,19 +129,23 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.canvas },
-  root: { flex: 1, backgroundColor: colors.canvas, justifyContent: 'center', paddingHorizontal: spacing.xl },
-  layout: { width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 80 },
+  root: { flexGrow: 1, backgroundColor: colors.canvas, justifyContent: 'center', paddingHorizontal: spacing.xl },
+  layout: { width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 56 },
+  layoutCompact: { gap: spacing.xl },
   layoutNarrow: { flexDirection: 'column', gap: spacing.xxxl, paddingVertical: spacing.xxxl },
-  story: { flex: 1, gap: 58 },
+  story: { flex: 1, minWidth: 0, gap: 58 },
+  storyCompact: { gap: spacing.xxl },
   storyCopy: { gap: spacing.lg },
   kicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 10, letterSpacing: 1.5 },
   hero: { maxWidth: 640, color: colors.ink, fontFamily: font.medium, fontSize: 52, lineHeight: 57, letterSpacing: -2.2 },
+  heroCompact: { fontSize: 42, lineHeight: 47, letterSpacing: -1.7 },
   heroSmall: { fontSize: 38, lineHeight: 44 },
   heroBody: { maxWidth: 570, color: colors.inkMuted, fontSize: 17, lineHeight: 27 },
   promiseRow: { flexDirection: 'row', gap: spacing.xl, flexWrap: 'wrap' },
   promise: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   promiseText: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 12 },
-  loginCard: { width: '100%', maxWidth: 470, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.xl, ...shadow },
+  loginCard: { width: 430, maxWidth: '100%', flexShrink: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.xl, ...shadow },
+  loginCardNarrow: { width: '100%' },
   cardTitleArea: { gap: spacing.sm },
   cardKicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 10, letterSpacing: 1.4 },
   cardTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 26, letterSpacing: -0.7 },
