@@ -257,7 +257,10 @@ class _SpeechSegment(_StrictModel):
 
 class _GeneratedTranscript(_StrictModel):
     segments: list[_SpeechSegment] = Field(min_length=1)
-    warnings: list[str]
+    # Providers commonly omit optional empty arrays even when structured output
+    # is requested. Absence means there were no provider warnings; accepting it
+    # does not relax any transcript timing, language, or segment validation.
+    warnings: list[str] = Field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)

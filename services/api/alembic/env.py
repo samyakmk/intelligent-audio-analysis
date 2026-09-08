@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
 from logging.config import fileConfig
 
 from sqlalchemy import create_engine, pool
 
 from alembic import context
+from app.config import database_url_from_environment
 from app.models import Base
 
 config = context.config
@@ -16,9 +16,12 @@ target_metadata = Base.metadata
 
 
 def _database_url() -> str:
-    """Read only the process environment, falling back to alembic.ini."""
+    """Use the same environment-only database target as the application."""
 
-    return os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    resolved = database_url_from_environment()
+    if resolved == "sqlite:///./data/pocket_demo.db":
+        return config.get_main_option("sqlalchemy.url")
+    return resolved
 
 
 def run_migrations_offline() -> None:

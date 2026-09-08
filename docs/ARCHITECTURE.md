@@ -21,7 +21,7 @@ which client platform called them.
 ```mermaid
 flowchart LR
   Client["Expo universal client<br/>web / iOS / Android"] --> API["FastAPI modular API"]
-  Client -. "production extension:<br/>direct multipart upload" .-> Blob[("BlobStore")]
+  Client -. "hosted GCS:<br/>direct resumable upload" .-> Blob[("BlobStore")]
   API --> DB[("PostgreSQL + pgvector<br/>SQLite demo fallback")]
   API --> Blob
   DB --> Queue["Leased jobs + outbox"]
@@ -42,6 +42,15 @@ can start with no cloud accounts. The Compose profile uses PostgreSQL with the
 pgvector extension available, MinIO, separate API and worker processes, and ffmpeg;
 fixture retrieval remains lexical until an embedding adapter is implemented. Provider
 adapters have the same contracts in both profiles.
+
+The Google Cloud profile packages the static web export and FastAPI API into one
+same-origin Cloud Run image. Cloud Storage uses workload identity and resumable
+browser upload sessions; the client never receives bucket credentials, and the API
+reconciles, hashes, validates, and promotes the quarantined object before publishing
+readiness. Cloud SQL PostgreSQL retains sessions, transcripts, intelligence,
+citations, jobs, and costs. Container paths and Cloud SQL socket mounts come only
+from runtime configuration; the web bundle embeds neither a workstation path nor a
+deployment hostname.
 
 ## Trust boundaries and invariants
 
@@ -130,8 +139,9 @@ Real `.env` variants are ignored and are never required for the fixture profile.
 
 ## Scale extension points
 
-The interfaces intentionally permit PostgreSQL/pgvector, S3-compatible multipart
-uploads, managed provider callbacks, and a separately leased worker. Dedicated vector
+The interfaces support PostgreSQL/pgvector, S3-compatible objects, native Google
+Cloud Storage resumable uploads, managed provider callbacks, and a separately leased
+worker. Dedicated vector
 services, Kafka, Kubernetes, owned GPUs, scheduled memory, connectors, and enterprise
 identity remain deferred until measured load or product requirements justify them.
 

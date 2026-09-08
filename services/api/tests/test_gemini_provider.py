@@ -445,8 +445,7 @@ def test_dedicated_transcribe_falls_back_after_completed_empty_audio_result(
                             "text": "Pocket validates citations.",
                             "confidence": 0.96,
                         }
-                    ],
-                    "warnings": [],
+                    ]
                 },
                 model=settings.llm_cheap_model,
                 request_id="structured-fallback-response",

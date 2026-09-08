@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from sqlalchemy import func, select, text
 from starlette.concurrency import run_in_threadpool
 
@@ -22,6 +24,49 @@ from .providers import (
 )
 from .routes import auth, discovery, recordings
 from .seed import seed_reference_data
+
+
+def _attach_static_web(application: FastAPI, configured_root: Path | None) -> None:
+    if configured_root is None:
+        return
+    root = configured_root.resolve()
+    if not (root / "index.html").is_file():
+        raise RuntimeError(f"WEB_DIST_ROOT does not contain index.html: {root}")
+
+    @application.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
+    @application.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    def static_web(full_path: str = "") -> FileResponse:
+        # Unknown API and documentation paths must remain HTTP 404s instead of
+        # falling through to the single-page application.
+        if full_path in {"openapi.json", "docs", "redoc"} or full_path.startswith(
+            ("v1/", "docs/", "redoc/")
+        ):
+            raise HTTPException(status_code=404, detail="Not found")
+        requested = (root / full_path).resolve()
+        if requested != root and root not in requested.parents:
+            raise HTTPException(status_code=404, detail="Not found")
+        candidates = [requested]
+        if not requested.suffix:
+            candidates.extend([Path(f"{requested}.html"), requested / "index.html"])
+        for candidate in candidates:
+            if candidate.is_file():
+                immutable = full_path.startswith(("_expo/", "assets/"))
+                return FileResponse(
+                    candidate,
+                    headers={
+                        "Cache-Control": (
+                            "public, max-age=31536000, immutable"
+                            if immutable
+                            else "no-cache"
+                        ),
+                        "X-Content-Type-Options": "nosniff",
+                        "Referrer-Policy": "strict-origin-when-cross-origin",
+                        "X-Frame-Options": "DENY",
+                    },
+                )
+        if "." not in Path(full_path).name:
+            return FileResponse(root / "index.html", headers={"Cache-Control": "no-cache"})
+        raise HTTPException(status_code=404, detail="Not found")
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -168,6 +213,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "exports": True,
             },
         }
+
+    _attach_static_web(application, resolved.web_dist_root)
 
     return application
 

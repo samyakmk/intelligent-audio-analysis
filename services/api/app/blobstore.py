@@ -37,6 +37,18 @@ class BlobStore(ABC):
     @abstractmethod
     def promote(self, source_key: str, destination_key: str) -> None: ...
 
+    def create_upload_target(
+        self,
+        key: str,
+        *,
+        content_type: str,
+        size: int,
+        origin: str,
+    ) -> tuple[str, dict[str, str]] | None:
+        """Return a direct-upload target when the backend supports one."""
+
+        return None
+
 
 class LocalBlobStore(BlobStore):
     def __init__(self, root: Path):
@@ -188,6 +200,113 @@ class S3BlobStore(BlobStore):
         self.delete(source_key)
 
 
+class GCSBlobStore(BlobStore):
+    """Google Cloud Storage adapter using workload identity / ADC.
+
+    No credential file or machine path is accepted here. Locally, the client
+    uses Application Default Credentials; on Cloud Run, it uses the service's
+    attached identity.
+    """
+
+    def __init__(
+        self,
+        *,
+        bucket: str,
+        project: str | None = None,
+        prefix: str = "intelligent-audio-analysis",
+    ):
+        try:
+            from google.api_core.exceptions import NotFound, PreconditionFailed
+            from google.cloud import storage
+        except ImportError as exc:  # pragma: no cover - exercised without optional extra
+            raise RuntimeError(
+                "BLOB_STORE_BACKEND=gcs requires the google-cloud-storage dependency"
+            ) from exc
+        if not bucket:
+            raise RuntimeError("GCS_BUCKET is required when BLOB_STORE_BACKEND=gcs")
+        self.bucket_name = bucket
+        self.prefix = prefix.strip("/")
+        self._not_found = NotFound
+        self._precondition_failed = PreconditionFailed
+        self.client = storage.Client(project=project or None)
+        self.bucket = self.client.bucket(bucket)
+
+    def _key(self, key: str) -> str:
+        pure = PurePosixPath(key)
+        if pure.is_absolute() or ".." in pure.parts or not pure.parts:
+            raise ValueError("invalid opaque blob key")
+        suffix = "/".join(pure.parts)
+        return f"{self.prefix}/{suffix}" if self.prefix else suffix
+
+    def put(self, key: str, data: bytes, *, immutable: bool = False) -> None:
+        blob = self.bucket.blob(self._key(key))
+        try:
+            blob.upload_from_string(
+                data,
+                content_type="application/octet-stream",
+                checksum="auto",
+                if_generation_match=0 if immutable else None,
+            )
+        except self._precondition_failed as exc:
+            raise BlobAlreadyExists(key) from exc
+
+    def get(self, key: str) -> bytes:
+        try:
+            return self.bucket.blob(self._key(key)).download_as_bytes(checksum="auto")
+        except self._not_found as exc:
+            raise BlobNotFound(key) from exc
+
+    def exists(self, key: str) -> bool:
+        return self.bucket.blob(self._key(key)).exists(client=self.client)
+
+    def delete(self, key: str) -> None:
+        try:
+            self.bucket.blob(self._key(key)).delete()
+        except self._not_found:
+            return
+
+    def promote(self, source_key: str, destination_key: str) -> None:
+        source = self.bucket.blob(self._key(source_key))
+        destination = self.bucket.blob(self._key(destination_key))
+        if destination.exists(client=self.client):
+            if hashlib.sha256(destination.download_as_bytes()).digest() == hashlib.sha256(
+                source.download_as_bytes()
+            ).digest():
+                source.delete()
+                return
+            raise BlobAlreadyExists(destination_key)
+        try:
+            token: str | None = None
+            while True:
+                token, _, _ = destination.rewrite(
+                    source,
+                    token=token,
+                    if_generation_match=0,
+                )
+                if token is None:
+                    break
+        except self._precondition_failed as exc:
+            raise BlobAlreadyExists(destination_key) from exc
+        source.delete()
+
+    def create_upload_target(
+        self,
+        key: str,
+        *,
+        content_type: str,
+        size: int,
+        origin: str,
+    ) -> tuple[str, dict[str, str]]:
+        session_url = self.bucket.blob(self._key(key)).create_resumable_upload_session(
+            content_type=content_type,
+            size=size,
+            origin=origin,
+            if_generation_match=0,
+            checksum="auto",
+        )
+        return session_url, {"Content-Type": content_type}
+
+
 def create_blob_store(settings: object) -> BlobStore:
     backend = settings.blob_store_backend
     if backend == "filesystem":
@@ -201,4 +320,12 @@ def create_blob_store(settings: object) -> BlobStore:
             secret_access_key=settings.s3_secret_access_key,
             prefix=settings.s3_key_prefix,
         )
-    raise RuntimeError(f"Unsupported BLOB_STORE_BACKEND={backend!r}; use 'filesystem' or 's3'")
+    if backend == "gcs":
+        return GCSBlobStore(
+            bucket=settings.gcs_bucket,
+            project=settings.gcs_project,
+            prefix=settings.gcs_key_prefix,
+        )
+    raise RuntimeError(
+        f"Unsupported BLOB_STORE_BACKEND={backend!r}; use 'filesystem', 's3', or 'gcs'"
+    )

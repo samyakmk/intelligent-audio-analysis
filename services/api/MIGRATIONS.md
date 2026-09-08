@@ -14,9 +14,11 @@ Run commands from `services/api` with the service virtual environment:
 From the repository root, the equivalent commands are `npm run migrate`,
 `npm run migration:current`, and `npm run migration:check`.
 
-The migration environment reads `DATABASE_URL` from the process environment only.
-It never searches for or loads dotenv files. If `DATABASE_URL` is absent, the local
-SQLite URL in `alembic.ini` is used.
+The migration environment reads configuration from the process environment only; it
+never searches for or loads dotenv files. An explicit `DATABASE_URL` wins. When it is
+absent, `INSTANCE_CONNECTION_NAME`, `DB_USER`, `DB_PASSWORD`, and `DB_NAME` select the
+same percent-encoded Cloud SQL Unix-socket URL used by the application. If neither
+form is configured, the local SQLite URL in `alembic.ini` is used.
 
 For a disposable SQLite database:
 

@@ -132,6 +132,27 @@ Before a shared deployment, replace all relevant database, object-store, and ses
 placeholders; set real origins and TLS policy in `config/pocket.json`; and verify cookie
 behavior behind the intended same-site proxy.
 
+## Google Cloud profile
+
+The root `Dockerfile` produces a single same-origin Cloud Run image. An empty
+`EXPO_PUBLIC_API_URL` is deliberate in that build: browser API calls resolve against
+the current HTTPS origin, so a Cloud Run hostname is not compiled into JavaScript.
+
+The hosted API selects native Cloud Storage with `BLOB_STORE_BACKEND=gcs`,
+`GCS_BUCKET`, `GOOGLE_CLOUD_PROJECT`, and an optional `GCS_KEY_PREFIX`. Google client
+libraries use Application Default Credentials: local development can use the
+operator's ADC login, while Cloud Run uses its attached service account without a key
+file. Direct browser uploads use origin-bound resumable session URLs; those bearer
+URLs and local upload tokens are never persisted in idempotency records.
+
+Cloud SQL can be selected without placing a composite connection URL in a secret.
+When `DATABASE_URL` is absent, `INSTANCE_CONNECTION_NAME`, `DB_USER`, `DB_PASSWORD`,
+and `DB_NAME` produce a percent-encoded PostgreSQL URL over the Google-managed
+`/cloudsql` Unix socket. `DB_PASSWORD`, `TOKEN_SIGNING_SECRET`, and
+`GEMINI_API_KEY` belong in Secret Manager and are injected only into the server
+container. `WEB_DIST_ROOT` and `FIXTURE_ROOT` refer to container-owned paths, never
+to the source checkout. See `infra/gcp/README.md` for the release and rollback order.
+
 ## Provider and data boundary
 
 The reviewed demo routes are Gemini 3.5 Transcribe for eligible timestamped speech,

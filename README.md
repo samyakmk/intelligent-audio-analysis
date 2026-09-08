@@ -7,6 +7,14 @@ processing, cited intelligence, retrieval, tasks, budgets, costs, and deletion.
 The repository uses npm as its task interface. There is no Makefile and Gemini does
 not need a separate run command.
 
+## Hosted demo
+
+The public Google Cloud demo is available at
+<https://intelligent-audio-analysis-119822447991.us-central1.run.app>. It uses Cloud
+Run, Cloud SQL, private Cloud Storage, Secret Manager, and server-side Gemini. Demo
+identities and workspaces are shared: use only synthetic or explicitly approved,
+non-private audio, as required by the upload confirmation.
+
 ## Quick start
 
 ### Prerequisites
@@ -215,12 +223,13 @@ deterministic projections remain local and do not spend model tokens.
 
 ## Current limits
 
-This project is ready for local fixture demos and explicitly approved Gemini testing;
-it is not production-ready or deployed. The upload path buffers media and would need
-direct resumable multipart transfer for production-sized files. A shared paid
-deployment still needs provider invoice reconciliation, atomic deletion-fenced
-dispatch, membership-policy rechecks, long-call lease heartbeats, production
-PostgreSQL/S3 concurrency tests, signed native builds, and target-device verification.
+This project is deployed as a public, explicitly non-production Google Cloud demo.
+Browser uploads use origin-bound GCS resumable sessions and the API reconciles and
+validates the object before processing. A production or private-data release still
+needs real identity/onboarding, isolated user workspaces, provider invoice
+reconciliation, atomic deletion-fenced dispatch, membership-policy rechecks, long-call
+lease heartbeats, production PostgreSQL concurrency tests, signed native builds,
+target-device verification, and a database backup/restore plan.
 
 Without Gemini, arbitrary valid audio is stored and verified but stops visibly at
 `PARTIAL / speech_unconfigured`; only the exact checked-in fixture can publish scripted

@@ -1,0 +1,8 @@
+[
+  {
+    "origin": ["https://intelligent-audio-analysis-119822447991.us-central1.run.app"],
+    "method": ["PUT"],
+    "responseHeader": ["Content-Type", "x-goog-resumable"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -1,4 +1,4 @@
-# Never send credentials or local configuration to a Docker build context.
+# Keep source uploads minimal and exclude every local secret/cached artifact.
 .env
 .env.*
 **/.env
@@ -6,17 +6,12 @@
 .envrc
 **/.envrc
 **/.direnv
-
-# Repository and editor metadata
 .git
 .gitignore
-.gcloudignore
 .github
 .DS_Store
 .idea
 .vscode
-
-# Dependencies, caches, generated native projects, tests, and local data
 **/node_modules
 **/.expo
 **/.venv
@@ -35,14 +30,10 @@ data
 *.db
 *.sqlite*
 *.log
-
-# Documentation and local tooling are not runtime image inputs.
 docs
 scripts
 infra
 POCKET_DEMO_FINAL_DESIGN_AND_ARCHITECTURE.md
-
-# Fixture mode needs one exact approved functional fixture, not a broad corpus.
 fixtures/*
 !fixtures/manifest.json
 !fixtures/media

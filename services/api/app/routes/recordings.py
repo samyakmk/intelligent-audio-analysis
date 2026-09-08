@@ -130,6 +130,35 @@ def _remember_idempotency(
     )
 
 
+def _upload_target(
+    request: Request,
+    upload: UploadSession,
+    *,
+    content_type: str,
+    size: int,
+) -> tuple[str, dict[str, str]]:
+    origin = request.headers.get("origin") or str(request.base_url).rstrip("/")
+    direct = None
+    if upload.status == "created":
+        direct = request.app.state.blob_store.create_upload_target(
+            upload.quarantine_key,
+            content_type=content_type,
+            size=size,
+            origin=origin,
+        )
+    if direct is not None:
+        return direct
+    return (
+        str(request.url_for("upload_content", upload_session_id=upload.id)),
+        {
+            "X-Upload-Token": _derive_upload_token(
+                request.app.state.settings,
+                upload.id,
+            )
+        },
+    )
+
+
 @router.post("/upload-sessions", status_code=status.HTTP_201_CREATED)
 def create_upload_session(
     payload: UploadSessionCreate,
@@ -158,10 +187,16 @@ def create_upload_session(
                     "message": "The original upload reservation was deleted.",
                 },
             )
-        return {
-            **prior,
-            "upload_headers": {"X-Upload-Token": _derive_upload_token(settings, prior["id"])},
-        }
+        prior_upload = db.get(UploadSession, prior["id"])
+        if prior_upload is None:
+            raise HTTPException(status_code=410, detail="Upload session no longer exists")
+        upload_url, upload_headers = _upload_target(
+            request,
+            prior_upload,
+            content_type=prior_recording.content_type,
+            size=prior_upload.expected_size or 0,
+        )
+        return {**prior, "upload_url": upload_url, "upload_headers": upload_headers}
     if payload.mode == "deep":
         if settings.provider_mode != "gemini" or not settings.allow_remote_provider_calls:
             raise HTTPException(
@@ -264,20 +299,30 @@ def create_upload_session(
     db.add(recording)
     db.add(upload)
     db.flush()
-    upload_url = str(request.url_for("upload_content", upload_session_id=upload_id))
+    upload_url, upload_headers = _upload_target(
+        request,
+        upload,
+        content_type=recording.content_type,
+        size=payload.size_bytes,
+    )
     response = jsonable_encoder(
         {
             "id": upload_id,
             "recording_id": recording_id,
             "upload_url": upload_url,
             "upload_method": "PUT",
-            "upload_headers": {"X-Upload-Token": upload_token},
+            "upload_headers": upload_headers,
             "expires_at": expires_at,
             "max_bytes": settings.max_upload_bytes,
             "provider_data_approved": recording.provider_data_approved,
         }
     )
-    persisted_response = {key: value for key, value in response.items() if key != "upload_headers"}
+    # Direct GCS resumable-session URLs and local upload tokens are bearer
+    # capabilities. Regenerate them on an idempotent replay; never persist
+    # either capability in the database.
+    persisted_response = {
+        key: value for key, value in response.items() if key not in {"upload_url", "upload_headers"}
+    }
     _remember_idempotency(
         db,
         auth.workspace_id,
@@ -454,11 +499,41 @@ def complete_upload(
                 queued.id,
             )
         return recording_detail_payload(db, recording)
+    uploaded_data: bytes | None = None
+    if upload.status == "created" and request.app.state.blob_store.exists(upload.quarantine_key):
+        # A cloud-native direct upload bypasses the API process. Reconcile the
+        # object into the same durable state machine before validation.
+        uploaded_data = request.app.state.blob_store.get(upload.quarantine_key)
+        if len(uploaded_data) > request.app.state.settings.max_upload_bytes or (
+            upload.expected_size is not None and len(uploaded_data) != upload.expected_size
+        ):
+            request.app.state.blob_store.delete(upload.quarantine_key)
+            upload.status = "rejected"
+            recording.status = "FAILED_FINAL"
+            recording.stage = "failed"
+            recording.error_code = "reserved_size_mismatch"
+            recording.error_detail = "Received bytes differ from the reserved upload size."
+            recording.size_bytes = 0
+            emit_event(db, recording, "upload.rejected", {"code": recording.error_code})
+            db.commit()
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "reserved_size_mismatch",
+                    "message": recording.error_detail,
+                },
+            )
+        upload.actual_size = len(uploaded_data)
+        upload.actual_sha256 = hashlib.sha256(uploaded_data).hexdigest()
+        upload.status = "uploaded"
+        recording.stage = "verifying"
+        recording.status = "VERIFYING"
+        emit_event(db, recording, "upload.received", {"size_bytes": len(uploaded_data)})
     if upload.status != "uploaded":
         raise HTTPException(status_code=409, detail="Upload bytes have not arrived")
     if upload.deletion_generation != recording.deletion_generation:
         raise HTTPException(status_code=410, detail="Upload belongs to a stale deletion generation")
-    data = request.app.state.blob_store.get(upload.quarantine_key)
+    data = uploaded_data or request.app.state.blob_store.get(upload.quarantine_key)
     actual_hash = hashlib.sha256(data).hexdigest()
     if payload.sha256 != actual_hash or upload.actual_sha256 != actual_hash:
         recording.status = "FAILED_FINAL"

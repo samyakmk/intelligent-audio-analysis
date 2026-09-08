@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlencode, urlparse
 
 
 def _bool_env(name: str, default: bool) -> bool:
@@ -18,6 +18,28 @@ def _csv_env(name: str, default: list[str]) -> list[str]:
     if not value:
         return default
     return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def database_url_from_environment() -> str:
+    explicit = os.environ.get("DATABASE_URL")
+    if explicit:
+        return explicit
+    instance = os.environ.get("INSTANCE_CONNECTION_NAME", "").strip()
+    if not instance:
+        return "sqlite:///./data/pocket_demo.db"
+    user = os.environ.get("DB_USER", "pocket").strip()
+    password = os.environ.get("DB_PASSWORD", "")
+    database = os.environ.get("DB_NAME", "pocket").strip()
+    socket_root = os.environ.get("DB_SOCKET_ROOT", "/cloudsql").rstrip("/")
+    if not user or not password or not database or not socket_root:
+        raise RuntimeError(
+            "INSTANCE_CONNECTION_NAME requires DB_USER, DB_PASSWORD, DB_NAME, and DB_SOCKET_ROOT"
+        )
+    socket_path = f"{socket_root}/{instance}"
+    return (
+        f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@/"
+        f"{quote_plus(database)}?{urlencode({'host': socket_path})}"
+    )
 
 
 @dataclass(slots=True)
@@ -37,8 +59,12 @@ class Settings:
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
     s3_key_prefix: str = "pocket-demo"
+    gcs_bucket: str | None = None
+    gcs_project: str | None = None
+    gcs_key_prefix: str = "intelligent-audio-analysis"
     token_signing_secret: str = "unsafe-local-demo-signing-secret-change-me"
-    fixture_root: Path = Path(__file__).resolve().parents[3] / "fixtures"
+    fixture_root: Path = Path("fixtures")
+    web_dist_root: Path | None = None
     demo_mode: bool = True
     inline_worker: bool = True
     cookie_secure: bool = False
@@ -90,7 +116,7 @@ class Settings:
     def from_environment(cls) -> Settings:
         # Deliberately use os.environ directly; do not add dotenv loading here.
         return cls(
-            database_url=os.environ.get("DATABASE_URL", "sqlite:///./data/pocket_demo.db"),
+            database_url=database_url_from_environment(),
             blob_root=Path(os.environ.get("BLOB_ROOT", "./data/blobs")),
             blob_store_backend=os.environ.get("BLOB_STORE_BACKEND", "filesystem").strip().lower(),
             s3_endpoint_url=os.environ.get("S3_ENDPOINT_URL"),
@@ -99,14 +125,22 @@ class Settings:
             s3_access_key_id=os.environ.get("S3_ACCESS_KEY_ID"),
             s3_secret_access_key=os.environ.get("S3_SECRET_ACCESS_KEY"),
             s3_key_prefix=os.environ.get("S3_KEY_PREFIX", "pocket-demo").strip("/"),
+            gcs_bucket=os.environ.get("GCS_BUCKET"),
+            gcs_project=os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT"),
+            gcs_key_prefix=os.environ.get(
+                "GCS_KEY_PREFIX", "intelligent-audio-analysis"
+            ).strip("/"),
             token_signing_secret=os.environ.get(
                 "TOKEN_SIGNING_SECRET",
                 os.environ.get("SESSION_SECRET", "unsafe-local-demo-signing-secret-change-me"),
             ),
             fixture_root=Path(
-                os.environ.get(
-                    "FIXTURE_ROOT", str(Path(__file__).resolve().parents[3] / "fixtures")
-                )
+                os.environ.get("FIXTURE_ROOT", "fixtures")
+            ),
+            web_dist_root=(
+                Path(os.environ["WEB_DIST_ROOT"])
+                if os.environ.get("WEB_DIST_ROOT", "").strip()
+                else None
             ),
             demo_mode=_bool_env("DEMO_MODE", True),
             inline_worker=_bool_env("INLINE_WORKER", True),
