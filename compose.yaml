@@ -1,19 +1,19 @@
-name: pocket-demo
+name: intelligent-audio-analysis
 
 x-backend-environment: &backend-environment
   APP_ENV: ${APP_ENV:-development}
   DEMO_MODE: ${DEMO_MODE:-true}
   PROVIDER_MODE: ${PROVIDER_MODE:-fixture}
   ALLOW_REMOTE_PROVIDER_CALLS: ${ALLOW_REMOTE_PROVIDER_CALLS:-false}
-  DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql+psycopg://pocket:pocket-local-only@postgres:5432/pocket}
+  DATABASE_URL: ${COMPOSE_DATABASE_URL:-postgresql+psycopg://audio_analysis:audio-analysis-local-only@postgres:5432/audio_analysis}
   BLOB_STORE_BACKEND: s3
   BLOB_ROOT: /data/blobs
   S3_ENDPOINT_URL: http://minio:9000
-  S3_BUCKET: ${S3_BUCKET:-pocket-demo}
+  S3_BUCKET: ${S3_BUCKET:-intelligent-audio-analysis}
   S3_REGION: ${S3_REGION:-us-east-1}
-  S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-pocket-local}
-  S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-pocket-local-only}
-  S3_KEY_PREFIX: ${S3_KEY_PREFIX:-pocket-demo}
+  S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-audio-analysis-local}
+  S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-audio-analysis-local-only}
+  S3_KEY_PREFIX: ${S3_KEY_PREFIX:-intelligent-audio-analysis}
   FIXTURE_ROOT: /fixtures
   INLINE_WORKER: "false"
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}
@@ -81,9 +81,9 @@ services:
   postgres:
     image: pgvector/pgvector:0.8.6-pg16-bookworm
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-pocket}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pocket-local-only}
-      POSTGRES_DB: ${POSTGRES_DB:-pocket}
+      POSTGRES_USER: ${POSTGRES_USER:-audio_analysis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-audio-analysis-local-only}
+      POSTGRES_DB: ${POSTGRES_DB:-audio_analysis}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
@@ -97,14 +97,14 @@ services:
       start_period: 10s
     restart: unless-stopped
     stop_grace_period: 30s
-    networks: [pocket]
+    networks: [app]
 
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pocket-local}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pocket-local-only}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-audio-analysis-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-audio-analysis-local-only}
     ports:
       - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
       - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -118,7 +118,7 @@ services:
       start_period: 10s
     restart: unless-stopped
     stop_grace_period: 20s
-    networks: [pocket]
+    networks: [app]
 
   minio-bootstrap:
     image: minio/mc:RELEASE.2025-04-16T18-13-26Z
@@ -126,9 +126,9 @@ services:
       minio:
         condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-pocket-local}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-pocket-local-only}
-      S3_BUCKET: ${S3_BUCKET:-pocket-demo}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-audio-analysis-local}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-audio-analysis-local-only}
+      S3_BUCKET: ${S3_BUCKET:-intelligent-audio-analysis}
     entrypoint:
       - /bin/sh
       - -ec
@@ -137,10 +137,10 @@ services:
         mc mb --ignore-existing "local/$${S3_BUCKET}"
         mc anonymous set none "local/$${S3_BUCKET}"
     restart: "no"
-    networks: [pocket]
+    networks: [app]
 
   migrate:
-    image: pocket-demo-api:local
+    image: intelligent-audio-analysis-api:local
     build:
       context: .
       dockerfile: infra/docker/api.Dockerfile
@@ -152,10 +152,10 @@ services:
     restart: "no"
     security_opt:
       - no-new-privileges:true
-    networks: [pocket]
+    networks: [app]
 
   api:
-    image: pocket-demo-api:local
+    image: intelligent-audio-analysis-api:local
     build:
       context: .
       dockerfile: infra/docker/api.Dockerfile
@@ -179,10 +179,10 @@ services:
     stop_grace_period: 30s
     security_opt:
       - no-new-privileges:true
-    networks: [pocket]
+    networks: [app]
 
   worker:
-    image: pocket-demo-api:local
+    image: intelligent-audio-analysis-api:local
     command: ["python3.12", "-m", "app.worker", "--poll-seconds", "${WORKER_POLL_INTERVAL_SECONDS:-1}"]
     environment: *backend-environment
     depends_on:
@@ -204,10 +204,10 @@ services:
     stop_grace_period: 45s
     security_opt:
       - no-new-privileges:true
-    networks: [pocket]
+    networks: [app]
 
   web:
-    image: pocket-demo-web:local
+    image: intelligent-audio-analysis-web:local
     build:
       context: .
       dockerfile: infra/docker/client.Dockerfile
@@ -217,9 +217,9 @@ services:
         EXPO_PUBLIC_STATUS_POLL_INTERVAL_MS: ${EXPO_PUBLIC_STATUS_POLL_INTERVAL_MS:-1500}
         EXPO_PUBLIC_MEDIA_GRANT_REFRESH_SECONDS: ${EXPO_PUBLIC_MEDIA_GRANT_REFRESH_SECONDS:-45}
         EXPO_PUBLIC_SENTRY_DSN: ${EXPO_PUBLIC_SENTRY_DSN:-}
-        EXPO_APP_NAME: ${EXPO_APP_NAME:-Pocket Evidence Lab}
-        EXPO_APP_SLUG: ${EXPO_APP_SLUG:-pocket-evidence-lab}
-        EXPO_APP_SCHEME: ${EXPO_APP_SCHEME:-pocketdemo}
+        EXPO_APP_NAME: ${EXPO_APP_NAME:-Intelligent Audio Analysis}
+        EXPO_APP_SLUG: ${EXPO_APP_SLUG:-intelligent-audio-analysis}
+        EXPO_APP_SCHEME: ${EXPO_APP_SCHEME:-intelligentaudioanalysis}
     ports:
       - "127.0.0.1:${WEB_PORT:-8081}:8080"
     depends_on:
@@ -235,10 +235,10 @@ services:
     stop_grace_period: 10s
     security_opt:
       - no-new-privileges:true
-    networks: [pocket]
+    networks: [app]
 
 networks:
-  pocket:
+  app:
     driver: bridge
 
 volumes:

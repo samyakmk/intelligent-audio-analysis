@@ -15,7 +15,7 @@ from configuration import (
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_EXAMPLE = ROOT / ".env.example"
-PUBLIC_CONFIG = ROOT / "config" / "pocket.json"
+PUBLIC_CONFIG = ROOT / "config" / "intelligent-audio-analysis.json"
 
 REQUIRED_PUBLIC_KEYS = {
     "ALLOW_REMOTE_PROVIDER_CALLS",
@@ -85,7 +85,8 @@ def main() -> int:
     missing_public = sorted(REQUIRED_PUBLIC_KEYS - public_values.keys())
     if missing_public:
         raise SystemExit(
-            "config/pocket.json is missing required settings: " + ", ".join(missing_public)
+            "config/intelligent-audio-analysis.json is missing required settings: "
+            + ", ".join(missing_public)
         )
     overlap = sorted(set(private_values) & set(public_values))
     if overlap:

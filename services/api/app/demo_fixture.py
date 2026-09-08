@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-FIXTURE_ID = "pocket-demo-fixture"
+FIXTURE_ID = "intelligent-audio-analysis-fixture"
 FIXTURE_DURATION_MS = 18_000
 FIXTURE_SHA256 = "a9ca1574f43258d19643b3c3f0ff35031f0587f30afa7acce62c6ff37e15840c"
 
@@ -13,7 +13,7 @@ FIXTURE_SHA256 = "a9ca1574f43258d19643b3c3f0ff35031f0587f30afa7acce62c6ff37e1584
 def load_fixture_wav(fixture_root: Path) -> bytes:
     """Load and verify the repository's canonical functional mock fixture."""
 
-    path = fixture_root / "media" / "pocket-demo-fixture.wav"
+    path = fixture_root / "media" / "intelligent-audio-analysis-fixture.wav"
     data = path.read_bytes()
     actual = hashlib.sha256(data).hexdigest()
     if actual != FIXTURE_SHA256:
@@ -30,7 +30,7 @@ def load_fixture_manifest(fixture_root: Path) -> dict[str, Any]:
             "fixtures": [
                 {
                     "id": FIXTURE_ID,
-                    "media": "media/pocket-demo-fixture.wav",
+                    "media": "media/intelligent-audio-analysis-fixture.wav",
                     "sha256": FIXTURE_SHA256,
                     "duration_ms": FIXTURE_DURATION_MS,
                 }

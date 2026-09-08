@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .database import get_db
 from .models import CostEvent, DemoSession, Membership, Principal, Recording, Workspace
 
-SESSION_COOKIE = "pocket_demo_session"
+SESSION_COOKIE = "intelligent_audio_analysis_session"
 
 
 def hash_token(token: str) -> str:

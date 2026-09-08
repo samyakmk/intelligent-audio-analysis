@@ -1,5 +1,5 @@
 # Secrets and local runtime configuration. Keep examples reviewable.
-POCKET_DEMO_FINAL_DESIGN_AND_ARCHITECTURE.md
+INTELLIGENT_AUDIO_ANALYSIS_FINAL_DESIGN_AND_ARCHITECTURE.md
 .env
 .env.*
 **/.env

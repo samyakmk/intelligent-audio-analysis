@@ -33,10 +33,10 @@ describe('deterministic mind map projection', () => {
 
   it('merges repeated topic windows and deduplicates their evidence', () => {
     const repeated = topic(' Browser   upload ', undefined, 2_000);
-    const map = buildMindMap('  Pocket   demo  ', [repeated, repeated, topic('browser upload', undefined, 6_000)]);
-    const reversed = buildMindMap('  Pocket   demo  ', [topic('browser upload', undefined, 6_000), repeated]);
+    const map = buildMindMap('  Intelligent Audio Analysis   demo  ', [repeated, repeated, topic('browser upload', undefined, 6_000)]);
+    const reversed = buildMindMap('  Intelligent Audio Analysis   demo  ', [topic('browser upload', undefined, 6_000), repeated]);
 
-    expect(map.title).toBe('Pocket demo');
+    expect(map.title).toBe('Intelligent Audio Analysis demo');
     expect(reversed).toEqual(map);
     expect(map.nodeCount).toBe(1);
     expect(map.children[0]?.label).toBe('Browser upload');

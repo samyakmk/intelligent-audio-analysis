@@ -1,6 +1,6 @@
 {
-  "schema_version": "pocket.ask-evaluation.v1",
-  "fixture_id": "pocket-demo-fixture",
+  "schema_version": "intelligent-audio-analysis.ask-evaluation.v1",
+  "fixture_id": "intelligent-audio-analysis-fixture",
   "label_status": "approved-for-functional-fixture-tests-only",
   "quality_gate_eligible": false,
   "notice": "These labels verify deterministic retrieval, citation, structured-query, and abstention behavior. They do not measure model quality.",
@@ -117,7 +117,7 @@
       "id": "ask-semantic-004",
       "kind": "semantic",
       "question": "What was this conversation mainly about?",
-      "expected_answer_contains": ["Pocket", "browser upload"],
+      "expected_answer_contains": ["Intelligent Audio Analysis", "browser upload"],
       "expected_segment_ids": ["segment-1", "segment-2"],
       "should_abstain": false
     },
@@ -171,4 +171,3 @@
     }
   ]
 }
-

@@ -36,5 +36,4 @@ python3.12 "$repo_root/scripts/generate_fixture_wav.py" --check
 python3.12 "$repo_root/scripts/verify_fixture_corpus.py"
 python3.12 "$repo_root/scripts/verify_env_example.py"
 
-echo "Pocket Demo dependencies and deterministic fixtures are ready."
-
+echo "Intelligent Audio Analysis dependencies and deterministic fixtures are ready."

@@ -12,7 +12,7 @@ from app.models import Base
 
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location(
-    "pocket_run_local", ROOT / "scripts" / "run_local.py"
+    "intelligent_audio_analysis_run_local", ROOT / "scripts" / "run_local.py"
 )
 assert SPEC is not None and SPEC.loader is not None
 RUN_LOCAL = importlib.util.module_from_spec(SPEC)
@@ -139,12 +139,15 @@ def test_private_environment_rejects_public_configuration(tmp_path: Path) -> Non
     )
 
     values = RUN_LOCAL.load_explicit_environment(str(private))
-    with pytest.raises(SystemExit, match="move these keys to config/pocket.json"):
+    with pytest.raises(
+        SystemExit,
+        match="move these keys to config/intelligent-audio-analysis.json",
+    ):
         RUN_LOCAL.validate_private_environment(values)
 
 
 def test_public_configuration_is_typed_flattened_and_secret_free(tmp_path: Path) -> None:
-    public = tmp_path / "pocket.json"
+    public = tmp_path / "intelligent-audio-analysis.json"
     public.write_text(
         json.dumps(
             {
@@ -175,7 +178,9 @@ def test_public_configuration_is_typed_flattened_and_secret_free(tmp_path: Path)
 
 
 def test_checked_in_public_config_owns_gemini_models_budgets_and_policy() -> None:
-    public = RUN_LOCAL.load_public_configuration(ROOT / "config" / "pocket.json")
+    public = RUN_LOCAL.load_public_configuration(
+        ROOT / "config" / "intelligent-audio-analysis.json"
+    )
 
     assert not set(public) & RUN_LOCAL.GEMINI_LOCAL_ENV_KEYS
     assert public["GEMINI_SPEECH_MODEL"] == "gemini-3.5-transcribe"

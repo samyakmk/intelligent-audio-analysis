@@ -3,18 +3,18 @@ import type { ExpoConfig } from 'expo/config';
 const easProjectId = process.env.EAS_PROJECT_ID;
 
 const config: ExpoConfig = {
-  name: process.env.EXPO_APP_NAME ?? 'Pocket Evidence Lab',
-  slug: process.env.EXPO_APP_SLUG ?? 'pocket-evidence-lab',
+  name: process.env.EXPO_APP_NAME ?? 'Intelligent Audio Analysis',
+  slug: process.env.EXPO_APP_SLUG ?? 'intelligent-audio-analysis',
   version: '0.1.0',
   orientation: 'default',
-  scheme: process.env.EXPO_APP_SCHEME ?? 'pocketdemo',
+  scheme: process.env.EXPO_APP_SCHEME ?? 'intelligentaudioanalysis',
   userInterfaceStyle: 'light',
   ios: {
     supportsTablet: true,
-    bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER ?? 'com.pocketdemo.evidencelab',
+    bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER ?? 'com.intelligentaudioanalysis.app',
   },
   android: {
-    package: process.env.ANDROID_PACKAGE_NAME ?? 'com.pocketdemo.evidencelab',
+    package: process.env.ANDROID_PACKAGE_NAME ?? 'com.intelligentaudioanalysis.app',
     adaptiveIcon: {
       backgroundColor: '#123b37',
     },

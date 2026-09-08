@@ -33,7 +33,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--config-file",
-        default=str(ROOT / "config" / "pocket.json"),
+        default=str(ROOT / "config" / "intelligent-audio-analysis.json"),
         help="public JSON configuration path",
     )
     parser.add_argument("command", nargs=argparse.REMAINDER)

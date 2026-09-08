@@ -1,4 +1,4 @@
-"""Pocket demo API package."""
+"""Intelligent Audio Analysis API package."""
 
 __all__ = ["__version__"]
 

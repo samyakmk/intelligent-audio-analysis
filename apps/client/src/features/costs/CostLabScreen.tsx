@@ -88,7 +88,7 @@ export default function CostLabScreen() {
                 <SmallMetric label="Tokens" value={(costs.avoided_tokens ?? 0).toLocaleString()} />
                 <SmallMetric label="Cache hits" value={(costs.cache_hits ?? 0).toLocaleString()} />
               </View>
-              <Text style={styles.disclaimer}>This is a finite modeled scenario—not Pocket{"'"}s current implementation, incurred savings, or a universal percentage. Skipped required output never counts.</Text>
+              <Text style={styles.disclaimer}>This is a finite modeled scenario—not the app{"'"}s current implementation, incurred savings, or a universal percentage. Skipped required output never counts.</Text>
             </Card>
             <Card style={styles.stageCard}>
               <SectionTitle title="Spend by stage" subtitle="Direct variable model cost only" />

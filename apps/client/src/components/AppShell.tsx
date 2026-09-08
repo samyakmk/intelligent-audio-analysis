@@ -24,7 +24,7 @@ const navigation: { href: string; label: string; icon: IconName; match?: string 
   { href: '/', label: 'Library', icon: 'bookshelf', match: '/recordings' },
   { href: '/upload', label: 'Upload', icon: 'tray-arrow-up' },
   { href: '/search', label: 'Search', icon: 'magnify' },
-  { href: '/ask', label: 'Ask Pocket', icon: 'message-processing-outline' },
+  { href: '/ask', label: 'Ask AI', icon: 'message-processing-outline' },
   { href: '/tasks', label: 'Tasks & insights', icon: 'checkbox-marked-circle-outline' },
   { href: '/costs', label: 'Cost lab', icon: 'chart-waterfall' },
 ];
@@ -203,7 +203,7 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
               >
                 <MaterialCommunityIcons name={item.icon} size={21} color={active ? colors.coral : colors.inkFaint} />
                 <Text numberOfLines={1} style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>
-                  {item.label === 'Tasks & insights' ? 'Tasks' : item.label === 'Ask Pocket' ? 'Ask' : item.label === 'Cost lab' ? 'Costs' : item.label}
+                  {item.label === 'Tasks & insights' ? 'Tasks' : item.label === 'Ask AI' ? 'Ask' : item.label === 'Cost lab' ? 'Costs' : item.label}
                 </Text>
               </Pressable>
             );

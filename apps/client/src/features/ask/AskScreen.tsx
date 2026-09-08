@@ -103,7 +103,7 @@ export default function AskScreen() {
   return (
     <AppShell>
       <PageTitle
-        title="Ask Pocket"
+        title="Ask AI"
         subtitle="Answers use a bounded, permission-filtered context pack. Returned citations must exactly match retrieved source spans."
       />
       <ProviderPolicyNotice />
@@ -125,7 +125,7 @@ export default function AskScreen() {
               <View style={styles.welcome}>
                 <View style={styles.askMark}><MaterialCommunityIcons name="message-processing-outline" size={31} color={colors.coralDark} /></View>
                 <Text style={styles.welcomeTitle}>Ask only what the evidence can answer</Text>
-                <Text style={styles.welcomeBody}>Pocket will cite the source moment—or explicitly abstain when accessible evidence is insufficient.</Text>
+                <Text style={styles.welcomeBody}>The assistant will cite the source moment—or explicitly abstain when accessible evidence is insufficient.</Text>
                 <View style={styles.suggestions}>
                   {['What are the unresolved decisions?', 'Who owns the next steps?', 'Summarize risks with evidence'].map((item) => (
                     <Chip key={item} label={item} onPress={() => setDraft(item)} />
@@ -137,7 +137,7 @@ export default function AskScreen() {
                 {messages.map((message) => (
                   <View key={message.id} style={[styles.message, message.role === 'user' ? styles.userMessage : styles.assistantMessage]}>
                     <View style={styles.messageHeader}>
-                      <Text style={[styles.messageRole, message.role === 'user' && styles.userMessageRole]}>{message.role === 'user' ? 'YOU' : 'POCKET'}</Text>
+                      <Text style={[styles.messageRole, message.role === 'user' && styles.userMessageRole]}>{message.role === 'user' ? 'YOU' : 'ASSISTANT'}</Text>
                       {message.status === 'abstained' ? <Chip label="Abstained" icon="shield-alert-outline" /> : null}
                     </View>
                     <Text style={[styles.messageText, message.role === 'user' && styles.userMessageText]}>{message.content}</Text>

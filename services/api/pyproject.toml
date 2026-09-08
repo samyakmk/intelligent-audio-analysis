@@ -3,9 +3,9 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pocket-demo-api"
+name = "intelligent-audio-analysis-api"
 version = "0.1.0"
-description = "Evidence-first FastAPI backend for the Pocket architecture demo"
+description = "Evidence-first FastAPI backend for Intelligent Audio Analysis"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi==0.141.1",

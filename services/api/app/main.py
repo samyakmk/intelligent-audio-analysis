@@ -111,10 +111,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database.close()
 
     application = FastAPI(
-        title="Pocket Demo API",
+        title="Intelligent Audio Analysis API",
         version=__version__,
         description=(
-            "Evidence-first Pocket architecture demo. Mock fixture provenance is "
+            "Evidence-first Intelligent Audio Analysis demo. Mock fixture provenance is "
             "explicit; arbitrary audio never receives invented AI artifacts."
         ),
         lifespan=lifespan,

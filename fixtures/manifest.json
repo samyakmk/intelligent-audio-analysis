@@ -1,17 +1,17 @@
 {
-  "schema_version": "pocket.fixture-manifest.v1",
+  "schema_version": "intelligent-audio-analysis.fixture-manifest.v1",
   "generated_by": "scripts/generate_fixture_wav.py",
   "fixtures": [
     {
-      "id": "pocket-demo-fixture",
-      "media": "media/pocket-demo-fixture.wav",
+      "id": "intelligent-audio-analysis-fixture",
+      "media": "media/intelligent-audio-analysis-fixture.wav",
       "sha256": "a9ca1574f43258d19643b3c3f0ff35031f0587f30afa7acce62c6ff37e15840c",
       "bytes": 576044,
       "duration_ms": 18000,
       "sample_rate_hz": 16000,
       "channels": 1,
       "language": "en-US",
-      "sidecar": "sidecars/pocket-demo-fixture.json",
+      "sidecar": "sidecars/intelligent-audio-analysis-fixture.json",
       "source_type": "deterministic-tone-carrier",
       "approved_uses": [
         "fixture-provider functional tests",
@@ -29,4 +29,3 @@
     }
   ]
 }
-

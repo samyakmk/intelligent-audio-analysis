@@ -1,1 +1,1 @@
-"""HTTP routers for the Pocket demo API."""
+"""HTTP routers for the Intelligent Audio Analysis API."""

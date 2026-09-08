@@ -1,6 +1,6 @@
-# Pocket Evidence Lab
+# Intelligent Audio Analysis
 
-Pocket Evidence Lab is a cross-platform audio-intelligence demo. An Expo/React
+Intelligent Audio Analysis is a cross-platform audio-intelligence demo. An Expo/React
 Native client targets web, iOS, and Android, while a FastAPI backend owns uploads,
 processing, cited intelligence, retrieval, tasks, budgets, costs, and deletion.
 
@@ -75,15 +75,15 @@ the `replace-me-...` template value do not enable Gemini.
 You can also keep secrets in another file and select it explicitly:
 
 ```sh
-npm start -- --env-file /absolute/private/path/pocket-demo.env
+npm start -- --env-file /absolute/private/path/intelligent-audio-analysis.env
 ```
 
 Use a different public configuration when intentionally testing a variant:
 
 ```sh
 npm start -- \
-  --config-file /absolute/path/pocket.json \
-  --env-file /absolute/private/path/pocket-demo.env
+  --config-file /absolute/path/intelligent-audio-analysis.json \
+  --env-file /absolute/private/path/intelligent-audio-analysis.env
 ```
 
 To force the local fixture provider even when `.env` contains a key:
@@ -122,14 +122,14 @@ Run these from the repository root:
 
 Configuration is deliberately split:
 
-- `config/pocket.json` contains checked-in, non-secret behavior such as model IDs,
+- `config/intelligent-audio-analysis.json` contains checked-in, non-secret behavior such as model IDs,
   provider policy, budgets, prices, retries, timeouts, ports, origins, and app metadata.
 - `.env` contains only private credentials and signing material. It is ignored by Git
   and Docker build contexts.
 - `.env.example` is a placeholder-only template and is safe to commit.
 
 The launcher parses `.env` as data rather than executing it as shell code. It rejects
-public settings in `.env`; put those in `config/pocket.json`. Never use an
+public settings in `.env`; put those in `config/intelligent-audio-analysis.json`. Never use an
 `EXPO_PUBLIC_*` name for a secret because Expo embeds those values in client bundles.
 
 The lightweight run always uses local SQLite, filesystem blobs, loopback API hosting,
@@ -158,8 +158,8 @@ To validate or start the configured Compose profile with an operator-owned secre
 file, provide an absolute path:
 
 ```sh
-ENV_FILE=/absolute/private/path/pocket-demo.env npm run compose:config:configured
-ENV_FILE=/absolute/private/path/pocket-demo.env npm run compose:up:configured
+ENV_FILE=/absolute/private/path/intelligent-audio-analysis.env npm run compose:config:configured
+ENV_FILE=/absolute/private/path/intelligent-audio-analysis.env npm run compose:up:configured
 ```
 
 The values in `.env.example` are not deployable credentials. Replace the relevant
@@ -200,7 +200,7 @@ infra/             Docker definitions and example price catalog
 scripts/           Setup, launch, configuration, fixture, and Compose helpers
 docs/              Architecture, configuration, safety contract, and scope
 compose.yaml       Production-shaped local topology
-config/pocket.json Checked-in non-secret runtime and build configuration
+config/intelligent-audio-analysis.json Checked-in non-secret runtime and build configuration
 .env.example       Secret-only template
 package.json       Canonical developer command surface
 ```

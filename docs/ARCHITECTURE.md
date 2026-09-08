@@ -1,6 +1,6 @@
-# Pocket Demo architecture
+# Intelligent Audio Analysis architecture
 
-This document translates `POCKET_DEMO_FINAL_DESIGN_AND_ARCHITECTURE.md` into the
+This document translates `INTELLIGENT_AUDIO_ANALYSIS_FINAL_DESIGN_AND_ARCHITECTURE.md` into the
 repository's implementation boundaries. The design document remains authoritative
 for product invariants and acceptance criteria.
 
@@ -132,7 +132,7 @@ Only client-safe values may use the `EXPO_PUBLIC_` prefix. Provider credentials,
 database/object-store credentials, and session secrets belong in an explicitly
 selected private `.env`. Non-secret routing policy, exact model IDs, dated price data,
 budgets, timeouts, quotas, and client/native settings live in the checked-in
-`config/pocket.json`. The launchers flatten that public file into process settings,
+`config/intelligent-audio-analysis.json`. The launchers flatten that public file into process settings,
 then inject only allowlisted secrets into server processes. A private file containing
 public configuration fails startup instead of silently overriding reviewable policy.
 Real `.env` variants are ignored and are never required for the fixture profile.

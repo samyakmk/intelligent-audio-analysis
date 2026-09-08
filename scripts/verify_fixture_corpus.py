@@ -189,7 +189,9 @@ def verify_backend_identity(fixture: dict[str, Any], expected_bytes: bytes) -> N
     module_path = ROOT / "services" / "api" / "app" / "demo_fixture.py"
     if not module_path.is_file():
         fail("backend fixture identity module is missing")
-    spec = importlib.util.spec_from_file_location("pocket_demo_fixture_contract", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "intelligent_audio_analysis_fixture_contract", module_path
+    )
     if spec is None or spec.loader is None:
         fail("cannot load backend fixture identity module")
     module = importlib.util.module_from_spec(spec)
@@ -273,8 +275,8 @@ def main() -> int:
     if not isinstance(fixtures, list) or len(fixtures) != 1:
         fail("this seed corpus must declare exactly one deterministic fixture")
     fixture = fixtures[0]
-    if not isinstance(fixture, dict) or fixture.get("id") != "pocket-demo-fixture":
-        fail("manifest is missing pocket-demo-fixture")
+    if not isinstance(fixture, dict) or fixture.get("id") != "intelligent-audio-analysis-fixture":
+        fail("manifest is missing intelligent-audio-analysis-fixture")
     if fixture.get("quality_gate_eligible") is not False:
         fail("the tone fixture must remain excluded from the quality gate")
 

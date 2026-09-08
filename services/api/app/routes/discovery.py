@@ -672,7 +672,7 @@ def create_recap(
     ).all()
     citations = [citation for item in summaries for citation in item.get("evidence", [])]
     data = {
-        "title": f"{payload.kind.title()} Pocket recap",
+        "title": f"{payload.kind.title()} Intelligent Audio Analysis recap",
         "period": datetime.now(UTC).date().isoformat(),
         "summary": " ".join(item.get("short", "") for item in summaries if item.get("short"))
         or "No grounded recording summaries are available.",
@@ -742,10 +742,10 @@ def create_export(
             raise HTTPException(status_code=404, detail="Recap not found")
         if payload.format == "json":
             content = json.dumps({"id": recap.id, **recap.payload}, indent=2)
-            content_type, filename = "application/json", "pocket-recap.json"
+            content_type, filename = "application/json", "intelligent-audio-analysis-recap.json"
         elif payload.format == "markdown":
             content = f"# {recap.payload['title']}\n\n{recap.payload['summary']}\n"
-            content_type, filename = "text/markdown", "pocket-recap.md"
+            content_type, filename = "text/markdown", "intelligent-audio-analysis-recap.md"
         else:
             raise HTTPException(status_code=422, detail="Recaps support Markdown or JSON export")
         return {"filename": filename, "content_type": content_type, "content": content}

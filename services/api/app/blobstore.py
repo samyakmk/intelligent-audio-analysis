@@ -126,7 +126,7 @@ class S3BlobStore(BlobStore):
         region: str = "us-east-1",
         access_key_id: str | None = None,
         secret_access_key: str | None = None,
-        prefix: str = "pocket-demo",
+        prefix: str = "intelligent-audio-analysis",
     ):
         try:
             import boto3

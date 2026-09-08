@@ -28,8 +28,8 @@
     ]
   },
   "database": {
-    "POSTGRES_USER": "pocket",
-    "POSTGRES_DB": "pocket",
+    "POSTGRES_USER": "audio_analysis",
+    "POSTGRES_DB": "audio_analysis",
     "POSTGRES_PORT": 5432,
     "DB_POOL_SIZE": 5,
     "DB_MAX_OVERFLOW": 5,
@@ -41,8 +41,8 @@
     "BLOB_ROOT": ".local/blobs",
     "S3_ENDPOINT_URL": "http://localhost:9000",
     "S3_REGION": "us-east-1",
-    "S3_BUCKET": "pocket-demo",
-    "S3_KEY_PREFIX": "pocket-demo",
+    "S3_BUCKET": "intelligent-audio-analysis",
+    "S3_KEY_PREFIX": "intelligent-audio-analysis",
     "S3_FORCE_PATH_STYLE": true,
     "S3_USE_TLS": false,
     "MINIO_API_PORT": 9000,
@@ -53,15 +53,15 @@
     "EPHEMERAL_DERIVATIVE_TTL_HOURS": 24
   },
   "authentication": {
-    "SESSION_COOKIE_NAME": "pocket_demo_session",
-    "CSRF_COOKIE_NAME": "pocket_demo_csrf",
+    "SESSION_COOKIE_NAME": "intelligent_audio_analysis_session",
+    "CSRF_COOKIE_NAME": "intelligent_audio_analysis_csrf",
     "COOKIE_SECURE": false,
     "COOKIE_SAMESITE": "lax",
     "SESSION_TTL_SECONDS": 28800,
     "DEMO_PRINCIPAL_A_EMAIL": "alex@example.invalid",
     "DEMO_PRINCIPAL_B_EMAIL": "blair@example.invalid",
-    "DEMO_WORKSPACE_A_NAME": "Pocket Demo Alpha",
-    "DEMO_WORKSPACE_B_NAME": "Pocket Demo Beta"
+    "DEMO_WORKSPACE_A_NAME": "Intelligent Audio Analysis Alpha",
+    "DEMO_WORKSPACE_B_NAME": "Intelligent Audio Analysis Beta"
   },
   "provider_policy": {
     "PROVIDER_DATA_POLICY": "synthetic-approved-only",
@@ -150,7 +150,7 @@
     "LOG_CONTENT_POLICY": "metadata-only",
     "REQUEST_ID_HEADER": "X-Request-ID",
     "OTEL_ENABLED": false,
-    "OTEL_SERVICE_NAME": "pocket-demo-api",
+    "OTEL_SERVICE_NAME": "intelligent-audio-analysis-api",
     "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:4318",
     "METRICS_ENABLED": false,
     "SENTRY_ENVIRONMENT": "development"
@@ -171,11 +171,11 @@
     "EXPO_PUBLIC_SENTRY_DSN": ""
   },
   "native_app": {
-    "EXPO_APP_NAME": "Pocket Evidence Lab",
-    "EXPO_APP_SLUG": "pocket-evidence-lab",
-    "EXPO_APP_SCHEME": "pocketdemo",
-    "IOS_BUNDLE_IDENTIFIER": "com.pocketdemo.evidencelab",
-    "ANDROID_PACKAGE_NAME": "com.pocketdemo.evidencelab",
+    "EXPO_APP_NAME": "Intelligent Audio Analysis",
+    "EXPO_APP_SLUG": "intelligent-audio-analysis",
+    "EXPO_APP_SCHEME": "intelligentaudioanalysis",
+    "IOS_BUNDLE_IDENTIFIER": "com.intelligentaudioanalysis.app",
+    "ANDROID_PACKAGE_NAME": "com.intelligentaudioanalysis.app",
     "EAS_PROJECT_ID": ""
   }
 }

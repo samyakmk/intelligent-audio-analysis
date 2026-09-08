@@ -19,7 +19,7 @@ def _database_url() -> str:
     """Use the same environment-only database target as the application."""
 
     resolved = database_url_from_environment()
-    if resolved == "sqlite:///./data/pocket_demo.db":
+    if resolved == "sqlite:///./data/intelligent_audio_analysis.db":
         return config.get_main_option("sqlalchemy.url")
     return resolved
 

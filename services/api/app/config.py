@@ -26,10 +26,10 @@ def database_url_from_environment() -> str:
         return explicit
     instance = os.environ.get("INSTANCE_CONNECTION_NAME", "").strip()
     if not instance:
-        return "sqlite:///./data/pocket_demo.db"
-    user = os.environ.get("DB_USER", "pocket").strip()
+        return "sqlite:///./data/intelligent_audio_analysis.db"
+    user = os.environ.get("DB_USER", "audio_analysis").strip()
     password = os.environ.get("DB_PASSWORD", "")
-    database = os.environ.get("DB_NAME", "pocket").strip()
+    database = os.environ.get("DB_NAME", "audio_analysis").strip()
     socket_root = os.environ.get("DB_SOCKET_ROOT", "/cloudsql").rstrip("/")
     if not user or not password or not database or not socket_root:
         raise RuntimeError(
@@ -50,7 +50,7 @@ class Settings:
     searches for or loads dotenv files.
     """
 
-    database_url: str = "sqlite:///./data/pocket_demo.db"
+    database_url: str = "sqlite:///./data/intelligent_audio_analysis.db"
     blob_root: Path = Path("./data/blobs")
     blob_store_backend: str = "filesystem"
     s3_endpoint_url: str | None = None
@@ -58,7 +58,7 @@ class Settings:
     s3_region: str = "us-east-1"
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
-    s3_key_prefix: str = "pocket-demo"
+    s3_key_prefix: str = "intelligent-audio-analysis"
     gcs_bucket: str | None = None
     gcs_project: str | None = None
     gcs_key_prefix: str = "intelligent-audio-analysis"
@@ -125,7 +125,7 @@ class Settings:
             s3_region=os.environ.get("S3_REGION", "us-east-1"),
             s3_access_key_id=os.environ.get("S3_ACCESS_KEY_ID"),
             s3_secret_access_key=os.environ.get("S3_SECRET_ACCESS_KEY"),
-            s3_key_prefix=os.environ.get("S3_KEY_PREFIX", "pocket-demo").strip("/"),
+            s3_key_prefix=os.environ.get("S3_KEY_PREFIX", "intelligent-audio-analysis").strip("/"),
             gcs_bucket=os.environ.get("GCS_BUCKET"),
             gcs_project=os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT"),
             gcs_key_prefix=os.environ.get(

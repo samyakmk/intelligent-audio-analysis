@@ -1,6 +1,6 @@
-# Pocket Evidence Lab client
+# Intelligent Audio Analysis client
 
-One Expo Router + TypeScript source targets the browser, iOS, and Android. The client contains no provider credentials; it talks only to the Pocket demo API.
+One Expo Router + TypeScript source targets the browser, iOS, and Android. The client contains no provider credentials; it talks only to the Intelligent Audio Analysis API.
 
 ## Local development
 

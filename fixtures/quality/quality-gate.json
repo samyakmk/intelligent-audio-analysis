@@ -1,5 +1,5 @@
 {
-  "schema_version": "pocket.quality-gate.v1",
+  "schema_version": "intelligent-audio-analysis.quality-gate.v1",
   "gate_id": "demo-route-qualification-v1",
   "status": "blocked_missing_approved_corpus",
   "quality_gate_passed": false,
@@ -57,4 +57,3 @@
     "No configured remote route has been evaluated against a strong comparison route."
   ]
 }
-

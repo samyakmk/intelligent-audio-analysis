@@ -1,1 +1,1 @@
-"""Pocket demo API tests."""
+"""Intelligent Audio Analysis API tests."""

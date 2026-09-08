@@ -1,5 +1,5 @@
 {
-  "schema_version": "pocket.price-catalog.v1",
+  "schema_version": "intelligent-audio-analysis.price-catalog.v1",
   "catalog_version": "unconfigured-example-v1",
   "currency": "USD",
   "effective_at": null,

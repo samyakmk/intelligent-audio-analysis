@@ -2,7 +2,7 @@
 """Invoke Compose in safe-default or explicit-config mode.
 
 Safe-default mode sanitizes ambient configuration before interpolation and forces
-fixture-only local values. Public behavior comes from config/pocket.json. Explicit
+fixture-only local values. Public behavior comes from config/intelligent-audio-analysis.json. Explicit
 mode accepts a user-nominated secret-only env path; there is no implicit `.env` fallback.
 """
 
@@ -23,7 +23,7 @@ from configuration import (
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "compose.yaml"
-DEFAULT_CONFIG_FILE = ROOT / "config" / "pocket.json"
+DEFAULT_CONFIG_FILE = ROOT / "config" / "intelligent-audio-analysis.json"
 
 PROCESS_KEYS = {
     "PATH",
@@ -57,10 +57,10 @@ SAFE_COMPOSE_VALUES = {
     "DEMO_MODE": "true",
     "PROVIDER_MODE": "fixture",
     "ALLOW_REMOTE_PROVIDER_CALLS": "false",
-    "POSTGRES_PASSWORD": "pocket-local-only",
-    "COMPOSE_DATABASE_URL": "postgresql+psycopg://pocket:pocket-local-only@postgres:5432/pocket",
-    "MINIO_ROOT_USER": "pocket-local",
-    "MINIO_ROOT_PASSWORD": "pocket-local-only",
+    "POSTGRES_PASSWORD": "audio-analysis-local-only",
+    "COMPOSE_DATABASE_URL": "postgresql+psycopg://audio_analysis:audio-analysis-local-only@postgres:5432/audio_analysis",
+    "MINIO_ROOT_USER": "audio-analysis-local",
+    "MINIO_ROOT_PASSWORD": "audio-analysis-local-only",
     "SESSION_SECRET": "local-demo-session-secret-change-before-sharing",
     "CSRF_SECRET": "local-demo-csrf-secret-change-before-sharing",
     "TOKEN_SIGNING_SECRET": "local-demo-capability-secret-change-before-sharing",

@@ -346,8 +346,8 @@ def seed_demo_recordings(
                 id=recording_id,
                 workspace_id=workspace_id,
                 created_by=principal_id,
-                display_name="Pocket scripted architecture demo",
-                original_filename="pocket-demo-fixture.wav",
+                display_name="Intelligent Audio Analysis scripted demo",
+                original_filename="intelligent-audio-analysis-fixture.wav",
                 content_type=probe.content_type,
                 requested_language="en",
                 provider_data_approved=True,
@@ -2610,7 +2610,7 @@ def query_terms(value: str) -> list[str]:
 
 def _looks_like_untrusted_instruction(text: str) -> bool:
     normalized = normalize_text(text)
-    targets = ("ask pocket", "assistant", "language model", "system prompt")
+    targets = ("ask ai", "assistant", "language model", "system prompt")
     directives = (
         "should answer",
         "must answer",
@@ -3197,17 +3197,21 @@ def export_content(
         return (
             json.dumps({"recordings": rows}, default=str, indent=2).encode(),
             "application/json",
-            "pocket-recordings.json",
+            "intelligent-audio-analysis-recordings.json",
         )
     if export_format == "markdown":
-        chunks = ["# Pocket recordings export\n"]
+        chunks = ["# Intelligent Audio Analysis recordings export\n"]
         for row in rows:
             recording = row["recording"]
             chunks.append(f"## {recording['display_name']}\n")
             for segment in row["transcript"].get("segments", []):
                 chunks.append(f"- `{segment['start_ms']}–{segment['end_ms']} ms` {segment['text']}")
             chunks.append("")
-        return "\n".join(chunks).encode(), "text/markdown", "pocket-recordings.md"
+        return (
+            "\n".join(chunks).encode(),
+            "text/markdown",
+            "intelligent-audio-analysis-recordings.md",
+        )
     if export_format == "csv":
         output = io.StringIO()
         writer = csv.writer(output)
@@ -3224,7 +3228,7 @@ def export_content(
                         segment["text"],
                     ]
                 )
-        return output.getvalue().encode(), "text/csv", "pocket-recordings.csv"
+        return output.getvalue().encode(), "text/csv", "intelligent-audio-analysis-recordings.csv"
     raise ValueError("ICS export is available for tasks, not recordings")
 
 
@@ -3247,15 +3251,15 @@ def _export_tasks(tasks: list[ActionItem], export_format: str) -> tuple[bytes, s
         return (
             json.dumps({"tasks": values}, indent=2).encode(),
             "application/json",
-            "pocket-tasks.json",
+            "intelligent-audio-analysis-tasks.json",
         )
     if export_format == "markdown":
-        lines = ["# Pocket tasks export", ""]
+        lines = ["# Intelligent Audio Analysis tasks export", ""]
         for item in values:
             marker = "x" if item["status"] in {"done", "completed"} else " "
             owner = f" — {item['owner']}" if item["owner"] else ""
             lines.append(f"- [{marker}] {item['task']}{owner}")
-        return "\n".join(lines).encode(), "text/markdown", "pocket-tasks.md"
+        return "\n".join(lines).encode(), "text/markdown", "intelligent-audio-analysis-tasks.md"
     if export_format == "csv":
         output = io.StringIO()
         writer = csv.DictWriter(
@@ -3265,15 +3269,15 @@ def _export_tasks(tasks: list[ActionItem], export_format: str) -> tuple[bytes, s
         writer.writeheader()
         for item in values:
             writer.writerow({key: item[key] for key in writer.fieldnames})
-        return output.getvalue().encode(), "text/csv", "pocket-tasks.csv"
+        return output.getvalue().encode(), "text/csv", "intelligent-audio-analysis-tasks.csv"
     if export_format == "ics":
-        lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Pocket Demo//EN"]
+        lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Intelligent Audio Analysis//EN"]
         for item in values:
             task_status = "COMPLETED" if item["status"] in {"done", "completed"} else "NEEDS-ACTION"
             lines.extend(
                 [
                     "BEGIN:VTODO",
-                    f"UID:{_ics(item['id'])}@pocket-demo",
+                    f"UID:{_ics(item['id'])}@intelligent-audio-analysis",
                     f"SUMMARY:{_ics(item['task'])}",
                     f"STATUS:{task_status}",
                 ]
@@ -3285,7 +3289,7 @@ def _export_tasks(tasks: list[ActionItem], export_format: str) -> tuple[bytes, s
                 lines.append(f"DESCRIPTION:Original due phrase: {_ics(item['due_text'])}")
             lines.append("END:VTODO")
         lines.append("END:VCALENDAR")
-        return "\r\n".join(lines).encode(), "text/calendar", "pocket-tasks.ics"
+        return "\r\n".join(lines).encode(), "text/calendar", "intelligent-audio-analysis-tasks.ics"
     raise ValueError("Unsupported export format")
 
 

@@ -11,7 +11,7 @@ from typing import Any
 ENV_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # These are the only values permitted in a private dotenv-style file. Values that
-# describe behavior belong in config/pocket.json so they remain reviewable.
+# describe behavior belong in config/intelligent-audio-analysis.json so they remain reviewable.
 PRIVATE_ENV_KEYS = frozenset(
     {
         "ASSEMBLYAI_API_KEY",
@@ -72,7 +72,7 @@ def validate_private_environment(values: dict[str, str]) -> None:
     if public_keys:
         raise SystemExit(
             "private environment file contains public configuration; move these keys to "
-            f"config/pocket.json: {', '.join(public_keys)}"
+            f"config/intelligent-audio-analysis.json: {', '.join(public_keys)}"
         )
 
 

@@ -160,7 +160,7 @@ class MockFixtureSpeechAdapter(SpeechAdapter):
             ],
             provider="mock.fixture",
             model_alias="speech.fixture",
-            resolved_model="builtin-scripted-pocket-demo-v1",
+            resolved_model="builtin-scripted-intelligent-audio-analysis-v1",
             provider_request_id=request.request_id,
             usage={"submitted_audio_seconds": 18, "billed_audio_seconds": 0},
             provenance={

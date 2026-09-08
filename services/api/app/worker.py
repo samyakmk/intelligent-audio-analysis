@@ -74,7 +74,9 @@ def run_worker(*, once: bool = False, poll_seconds: float = 1.0) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Pocket demo database-backed worker")
+    parser = argparse.ArgumentParser(
+        description="Intelligent Audio Analysis database-backed worker"
+    )
     parser.add_argument("--once", action="store_true", help="Drain at most the current queue")
     parser.add_argument("--poll-seconds", type=float, default=1.0)
     args = parser.parse_args()

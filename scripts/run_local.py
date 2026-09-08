@@ -3,7 +3,7 @@
 
 The launcher reads the repository's ignored, secret-only .env when it exists.
 A configured Gemini key activates Gemini automatically; otherwise the run stays on
-the zero-account fixture provider. Public behavior comes from config/pocket.json,
+the zero-account fixture provider. Public behavior comes from config/intelligent-audio-analysis.json,
 secrets are parsed as data (never sourced as shell code), and server-only values are
 not passed to the Expo process.
 """
@@ -170,11 +170,11 @@ def unversioned_sqlite_revision(database_path: Path) -> str | None:
         )
     if not LEGACY_SCHEMA_MARKERS.issubset(tables):
         raise SystemExit(
-            "local SQLite has tables but is not a recognized pre-Alembic Pocket schema"
+            "local SQLite has tables but is not a recognized pre-Alembic application schema"
         )
     if not BASELINE_RECORDING_COLUMN_MARKERS.issubset(recording_columns):
         raise SystemExit(
-            "local SQLite recording table is not a recognized Pocket baseline schema"
+            "local SQLite recording table is not a recognized application baseline schema"
         )
     if "provider_data_approved" in recording_columns:
         return HEAD_REVISION
@@ -204,14 +204,14 @@ def terminate(processes: list[subprocess.Popen[bytes]]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run the Pocket API and universal web client")
+    parser = argparse.ArgumentParser(description="Run the Intelligent Audio Analysis API and universal web client")
     parser.add_argument(
         "--env-file",
         help="absolute secret-only environment path (defaults to the repository .env)",
     )
     parser.add_argument(
         "--config-file",
-        default=str(ROOT / "config" / "pocket.json"),
+        default=str(ROOT / "config" / "intelligent-audio-analysis.json"),
         help="public JSON configuration path",
     )
     parser.add_argument(
@@ -241,7 +241,7 @@ def main() -> int:
     local_defaults = {
         "APP_ENV": "development",
         "DEMO_MODE": "true",
-        "DATABASE_URL": f"sqlite:///{LOCAL_DIR / 'pocket_demo.db'}",
+        "DATABASE_URL": f"sqlite:///{LOCAL_DIR / 'intelligent_audio_analysis.db'}",
         "BLOB_ROOT": str(blob_root),
         "FIXTURE_ROOT": str(ROOT / "fixtures"),
         "INLINE_WORKER": "true",
@@ -307,7 +307,7 @@ def main() -> int:
     signal.signal(signal.SIGTERM, handle_signal)
 
     try:
-        stamp_revision = unversioned_sqlite_revision(LOCAL_DIR / "pocket_demo.db")
+        stamp_revision = unversioned_sqlite_revision(LOCAL_DIR / "intelligent_audio_analysis.db")
         if stamp_revision is not None:
             subprocess.run(
                 [python, "-m", "alembic", "stamp", stamp_revision],
@@ -345,7 +345,7 @@ def main() -> int:
                 env=client_environment,
             )
         )
-        print("Pocket Demo starting: web http://localhost:8081, API http://localhost:8000")
+        print("Intelligent Audio Analysis starting: web http://localhost:8081, API http://localhost:8000")
         if provider_mode == "fixture":
             if args.provider_mode == "fixture":
                 print("Fixture mode was explicitly selected.")

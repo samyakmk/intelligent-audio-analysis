@@ -23,7 +23,7 @@ form is configured, the local SQLite URL in `alembic.ini` is used.
 For a disposable SQLite database:
 
 ```sh
-DATABASE_URL=sqlite:////absolute/path/pocket-demo.db \
+DATABASE_URL=sqlite:////absolute/path/intelligent-audio-analysis.db \
   .venv/bin/python -m alembic upgrade head
 ```
 

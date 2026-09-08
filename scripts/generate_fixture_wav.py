@@ -22,7 +22,7 @@ DEFAULT_OUTPUT = (
     Path(__file__).resolve().parents[1]
     / "fixtures"
     / "media"
-    / "pocket-demo-fixture.wav"
+    / "intelligent-audio-analysis-fixture.wav"
 )
 
 # Each interval is a stable machine-readable marker for one scripted sidecar turn.

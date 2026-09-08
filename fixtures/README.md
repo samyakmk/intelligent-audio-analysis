@@ -1,8 +1,8 @@
-# Pocket Demo fixtures
+# Intelligent Audio Analysis fixtures
 
-`media/pocket-demo-fixture.wav` is a deterministic 18-second, 16 kHz mono PCM
+`media/intelligent-audio-analysis-fixture.wav` is a deterministic 18-second, 16 kHz mono PCM
 tone carrier. The fixture provider maps its exact SHA-256 to the scripted canonical
-data in `sidecars/pocket-demo-fixture.json`. This gives upload, lifecycle, citation,
+data in `sidecars/intelligent-audio-analysis-fixture.json`. This gives upload, lifecycle, citation,
 Search, Ask, task, export, deletion, and cost tests stable input without pretending
 that tones were transcribed by ASR.
 

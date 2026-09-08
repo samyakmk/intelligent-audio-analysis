@@ -103,7 +103,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   } catch (error) {
     // Keep the key: the server may have committed before the response was lost.
     throw new ApiError(
-      `Could not reach the Pocket API at ${API_BASE_URL}. Check that it is running and reachable from this device.`,
+      `Could not reach the Intelligent Audio Analysis API at ${API_BASE_URL}. Check that it is running and reachable from this device.`,
       0,
       'network_error',
       error,

@@ -23,13 +23,13 @@ const FieldLabelContext = createContext<string | undefined>(undefined);
 
 export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
-    <View style={styles.brandRow} accessibilityLabel="Pocket Evidence Lab">
+    <View style={styles.brandRow} accessibilityLabel="Intelligent Audio Analysis">
       <View style={styles.brandIcon}>
         <MaterialCommunityIcons name="bookmark-check" size={20} color={colors.white} />
       </View>
       {!compact ? (
         <View>
-          <Text style={styles.brandName}>Pocket</Text>
+          <Text style={styles.brandName}>Intelligent Audio Analysis</Text>
           <Text style={styles.brandSub}>EVIDENCE LAB</Text>
         </View>
       ) : null}

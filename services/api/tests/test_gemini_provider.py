@@ -112,7 +112,7 @@ def _speech_request(*, budget_usd: float = 2.0) -> SpeechRequest:
         audio_reference="media-1",
         original_time_offset_ms=0,
         language="auto",
-        vocabulary_hints=("Pocket",),
+        vocabulary_hints=("Intelligent Audio Analysis",),
         require_diarization=True,
         require_timestamps=True,
         budget_usd=budget_usd,
@@ -133,7 +133,7 @@ def _intelligence_payload(
         "start_ms": 0,
         "end_ms": 1_000,
         "speaker_id": "speaker-a",
-        "quote": "Pocket validates citations.",
+        "quote": "Intelligent Audio Analysis validates citations.",
     }
     return {
         "title": {
@@ -142,13 +142,19 @@ def _intelligence_payload(
             "confidence": 0.96,
         },
         "summary": {
-            "short": "Pocket validates citations.",
-            "detailed": "Pocket validates citations before publishing intelligence.",
+            "short": "Intelligent Audio Analysis validates citations.",
+            "detailed": (
+                "Intelligent Audio Analysis validates citations before publishing intelligence."
+            ),
             "evidence": [citation],
             "confidence": 0.95,
         },
         "facts": [
-            {"claim": "Pocket validates citations.", "evidence": [citation], "confidence": 0.96}
+            {
+                "claim": "Intelligent Audio Analysis validates citations.",
+                "evidence": [citation],
+                "confidence": 0.96,
+            }
         ],
         "decisions": [],
         "actions": [
@@ -249,7 +255,7 @@ def test_files_transcription_uses_key_only_on_google_control_plane(tmp_path: Pat
                 "end_ms": 1_000,
                 "language_bcp47": "en-US",
                 "speaker_cluster_id": "speaker-a",
-                "text": "Pocket validates citations.",
+                "text": "Intelligent Audio Analysis validates citations.",
                 "confidence": 0.97,
             }
         ],
@@ -287,7 +293,7 @@ def test_files_transcription_uses_key_only_on_google_control_plane(tmp_path: Pat
 
     result = adapter.transcribe(_speech_request())
 
-    assert result.segments[0]["text"] == "Pocket validates citations."
+    assert result.segments[0]["text"] == "Intelligent Audio Analysis validates citations."
     assert result.provider == "google.gemini"
     assert result.usage["estimated_cost_usd"] > 0
     assert result.provenance["grounding_validation"] == "passed"
@@ -340,11 +346,11 @@ def test_dedicated_transcribe_is_preferred_for_timestamped_short_audio(
                             "content": [
                                 {
                                     "type": "text",
-                                    "text": "Pocket validates citations.",
+                                    "text": "Intelligent Audio Analysis validates citations.",
                                     "annotations": [
                                         {
                                             "type": "word_info",
-                                            "text": "Pocket",
+                                            "text": "Intelligent Audio Analysis",
                                             "speaker": "speaker-a",
                                             "start_offset": "0s",
                                             "end_offset": "0.4s",
@@ -383,7 +389,7 @@ def test_dedicated_transcribe_is_preferred_for_timestamped_short_audio(
     result = adapter.transcribe(replace(_speech_request(), language="en"))
 
     assert result.resolved_model == "gemini-3.5-transcribe"
-    assert result.segments[0]["text"] == "Pocket validates citations."
+    assert result.segments[0]["text"] == "Intelligent Audio Analysis validates citations."
     interaction = transport.calls[2]["json"]
     assert interaction["model"] == "gemini-3.5-transcribe"
     assert interaction["generation_config"]["transcription_config"]["mode"] == {
@@ -442,7 +448,7 @@ def test_dedicated_transcribe_falls_back_after_completed_empty_audio_result(
                             "end_ms": 1_000,
                             "language_bcp47": "en",
                             "speaker_cluster_id": "speaker-a",
-                            "text": "Pocket validates citations.",
+                            "text": "Intelligent Audio Analysis validates citations.",
                             "confidence": 0.96,
                         }
                     ]
@@ -458,7 +464,7 @@ def test_dedicated_transcribe_falls_back_after_completed_empty_audio_result(
     result = adapter.transcribe(replace(_speech_request(), language="en"))
 
     assert result.resolved_model == settings.llm_cheap_model
-    assert result.segments[0]["text"] == "Pocket validates citations."
+    assert result.segments[0]["text"] == "Intelligent Audio Analysis validates citations."
     assert result.usage["provider_calls"] == 2
     assert result.provenance["model_alias"] == "speech.cheap"
     assert result.provenance["escalation_reason"] == (
@@ -483,7 +489,7 @@ def test_long_timestamped_audio_falls_back_to_structured_flash_lite(
                 "end_ms": 1_000,
                 "language_bcp47": "en-US",
                 "speaker_cluster_id": "speaker-a",
-                "text": "Pocket validates citations.",
+                "text": "Intelligent Audio Analysis validates citations.",
                 "confidence": 0.97,
             }
         ],
@@ -642,7 +648,7 @@ def test_intelligence_repairs_cheap_then_escalates_once_to_strong(tmp_path: Path
             "start_ms": 0,
             "end_ms": 1_000,
             "speaker_cluster_id": "speaker-a",
-            "text": "Pocket validates citations.",
+            "text": "Intelligent Audio Analysis validates citations.",
         }
     ]
     reservation = adapter.estimate_intelligence_reservation(
@@ -859,7 +865,7 @@ class PipelineTransport:
                             "end_ms": 1_000,
                             "language_bcp47": "en-US",
                             "speaker_cluster_id": "speaker-a",
-                            "text": "Pocket validates citations.",
+                            "text": "Intelligent Audio Analysis validates citations.",
                             "confidence": 0.97,
                         }
                     ],
@@ -947,7 +953,7 @@ def test_local_api_full_gemini_flow_with_fake_transport(
                 "size_bytes": len(audio),
                 "sha256": digest,
                 "language": "en",
-                "vocabulary_hints": ["Pocket"],
+                "vocabulary_hints": ["Intelligent Audio Analysis"],
                 "mode": "standard",
                 "provider_data_approved": True,
             },
@@ -974,7 +980,9 @@ def test_local_api_full_gemini_flow_with_fake_transport(
         transcript = client.get(
             f"/v1/recordings/{upload['recording_id']}/transcript"
         ).json()
-        assert transcript["segments"][0]["text"] == "Pocket validates citations."
+        assert transcript["segments"][0]["text"] == (
+            "Intelligent Audio Analysis validates citations."
+        )
         assert transcript["provenance"]["provider"] == "google.gemini"
         intelligence = client.get(
             f"/v1/recordings/{upload['recording_id']}/intelligence"

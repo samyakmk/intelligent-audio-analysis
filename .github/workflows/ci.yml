@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: pocket-demo-ci-${{ github.ref }}
+  group: intelligent-audio-analysis-ci-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -36,7 +36,7 @@ jobs:
       - name: Validate checked-in JSON
         run: |
           python3.12 -m json.tool fixtures/manifest.json >/dev/null
-          python3.12 -m json.tool fixtures/sidecars/pocket-demo-fixture.json >/dev/null
+          python3.12 -m json.tool fixtures/sidecars/intelligent-audio-analysis-fixture.json >/dev/null
           python3.12 -m json.tool fixtures/quality/ask-questions.json >/dev/null
           python3.12 -m json.tool fixtures/quality/quality-gate.json >/dev/null
           python3.12 -m json.tool infra/pricing/price-catalog.example.json >/dev/null
@@ -95,15 +95,15 @@ jobs:
       - name: Bundle shared source for native targets
         working-directory: apps/client
         run: |
-          npx expo export --platform ios --output-dir /tmp/pocket-demo-ios-export
-          npx expo export --platform android --output-dir /tmp/pocket-demo-android-export
+          npx expo export --platform ios --output-dir /tmp/intelligent-audio-analysis-ios-export
+          npx expo export --platform android --output-dir /tmp/intelligent-audio-analysis-android-export
       - name: Verify all platform outputs
         run: |
           test -f apps/client/dist/index.html
           test -f apps/client/ios/Podfile
           test -f apps/client/android/settings.gradle
-          test -f /tmp/pocket-demo-ios-export/metadata.json
-          test -f /tmp/pocket-demo-android-export/metadata.json
+          test -f /tmp/intelligent-audio-analysis-ios-export/metadata.json
+          test -f /tmp/intelligent-audio-analysis-android-export/metadata.json
 
   container-images:
     name: Container image builds
@@ -116,5 +116,5 @@ jobs:
         run: python3.12 scripts/compose.py build api web
       - name: Assert media binaries are installed in the API image
         run: |
-          docker run --rm pocket-demo-api:local ffmpeg -version
-          docker run --rm pocket-demo-api:local ffprobe -version
+          docker run --rm intelligent-audio-analysis-api:local ffmpeg -version
+          docker run --rm intelligent-audio-analysis-api:local ffprobe -version

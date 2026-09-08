@@ -15,7 +15,7 @@ FIXTURE_ROOT = Path(__file__).resolve().parents[3] / "fixtures"
 @pytest.fixture
 def settings(tmp_path: Path) -> Settings:
     return Settings(
-        database_url=f"sqlite:///{tmp_path / 'pocket-test.db'}",
+        database_url=f"sqlite:///{tmp_path / 'intelligent-audio-analysis-test.db'}",
         blob_root=tmp_path / "blobs",
         fixture_root=FIXTURE_ROOT,
         inline_worker=True,

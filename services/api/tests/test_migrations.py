@@ -110,7 +110,7 @@ def test_approval_migration_backfills_only_checked_in_fixture_rows(
 def test_postgresql_offline_sql_includes_pgvector_and_budget_table(monkeypatch) -> None:
     monkeypatch.setenv(
         "DATABASE_URL",
-        "postgresql+psycopg://migration_user:placeholder@db.invalid/pocket",
+        "postgresql+psycopg://migration_user:placeholder@db.invalid/audio_analysis",
     )
     config = _config()
     output = io.StringIO()
@@ -155,7 +155,7 @@ def test_postgresql_app_startup_leaves_schema_ownership_to_alembic(
     monkeypatch.setattr(main_module, "seed_reference_data", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(main_module, "seed_demo_recordings", lambda *_args, **_kwargs: None)
     settings = Settings(
-        database_url="postgresql+psycopg://placeholder.invalid/pocket",
+        database_url="postgresql+psycopg://placeholder.invalid/audio_analysis",
         blob_root=tmp_path / "blobs",
         fixture_root=API_ROOT.parents[1] / "fixtures",
         inline_worker=False,
