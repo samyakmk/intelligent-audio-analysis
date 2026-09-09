@@ -1,38 +1,30 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { DropZone } from '@/components/DropZone';
+import { Button, Card, Notice, PageTitle } from '@/components/ui';
 import {
-  Button,
-  Card,
-  Field,
-  Input,
-  Notice,
-  PageTitle,
-  ProgressBar,
-  Segmented,
-  uiStyles,
-} from '@/components/ui';
-import { ApiError, api } from '@/lib/api';
-import {
-  canUseDeepIntelligence,
   canUploadInConfiguredLanguage,
   isProviderDataApprovalSatisfied,
-  isRemoteGemini,
-  isSyntheticApprovedOnly,
   requiresProviderDataApproval,
   resolveUploadLanguage,
-  supportsEnglish,
 } from '@/features/capabilities/capabilities';
-import { ProviderPolicyNotice } from '@/features/capabilities/ProviderPolicyNotice';
-import { formatBytes } from '@/lib/format';
-import { pickAudio, readAudio, sha256, type PickedAudio } from '@/platform/files';
-import { useSession } from '@/providers/SessionProvider';
+import { ApiError, api } from '@/lib/api';
+import { formatBytes, formatDuration } from '@/lib/format';
+import { fromRecordedUri, pickAudio, readAudio, sha256, type PickedAudio } from '@/platform/files';
 import { useCapabilities } from '@/providers/CapabilitiesProvider';
-import { colors, font, radius, shadowNone, spacing } from '@/theme';
+import { useSession } from '@/providers/SessionProvider';
+import { colors, font, radius, spacing } from '@/theme';
 import type { UploadSession } from '@/types/api';
 
 const MAX_BYTES = 500 * 1024 * 1024;
@@ -49,51 +41,45 @@ export default function UploadScreen() {
   const { width } = useWindowDimensions();
   const { session } = useSession();
   const { capabilities, loading: capabilitiesLoading } = useCapabilities();
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 100);
   const [file, setFile] = useState<PickedAudio>();
-  const [language, setLanguage] = useState<'auto' | 'en'>('auto');
-  const [mode, setMode] = useState<'standard' | 'deep'>('standard');
-  const [vocabulary, setVocabulary] = useState('');
+  const [recordedDuration, setRecordedDuration] = useState<number>();
+  const [recordingBusy, setRecordingBusy] = useState(false);
   const [step, setStep] = useState<UploadStep>('idle');
   const [error, setError] = useState<Error>();
   const [fileError, setFileError] = useState<string>();
   const [pendingUpload, setPendingUpload] = useState<PendingUpload>();
   const [providerDataApproved, setProviderDataApproved] = useState(false);
 
-  const vocabItems = useMemo(
-    () => vocabulary.split(/[,\n]/).map((item) => item.trim()).filter(Boolean).slice(0, 50),
-    [vocabulary],
-  );
   const isBusy = step !== 'idle';
-  const deepAvailable = canUseDeepIntelligence(capabilities);
-  const remoteGemini = isRemoteGemini(capabilities);
-  const englishAvailable = supportsEnglish(capabilities);
-  const uploadLanguageAvailable = canUploadInConfiguredLanguage(capabilities);
   const approvalRequired = requiresProviderDataApproval(capabilities);
   const approvalSatisfied = isProviderDataApprovalSatisfied(capabilities, providerDataApproved);
-  const selectedMode = deepAvailable ? mode : 'standard';
-  const selectedLanguage = resolveUploadLanguage(capabilities, language);
+  const uploadLanguageAvailable = canUploadInConfiguredLanguage(capabilities);
+  const selectedLanguage = resolveUploadLanguage(capabilities, 'auto');
   const quotaRemaining = Math.max(0, (session?.workspace.byte_limit ?? 5 * 1024 ** 3) - (session?.workspace.retained_bytes ?? 0));
 
-  const selectFile = (value: PickedAudio) => {
+  const selectFile = (value: PickedAudio, duration?: number) => {
     setError(undefined);
     setPendingUpload(undefined);
     setProviderDataApproved(false);
     if (value.size === 0) {
       setFile(undefined);
-      setFileError('This file is empty. Choose a recording with audio data.');
+      setFileError('No audio was captured. Try recording again.');
       return;
     }
     if (value.size !== undefined && value.size > MAX_BYTES) {
       setFile(undefined);
-      setFileError(`This file is ${formatBytes(value.size)}. The demo accepts up to 500 MiB.`);
+      setFileError(`This audio is ${formatBytes(value.size)}. Use a file smaller than 500 MiB.`);
       return;
     }
     if (value.size !== undefined && value.size > quotaRemaining) {
       setFile(undefined);
-      setFileError(`This workspace has ${formatBytes(quotaRemaining)} left. Delete an older recording or use a smaller file.`);
+      setFileError(`This demo has ${formatBytes(quotaRemaining)} of storage left. Use a smaller file.`);
       return;
     }
     setFileError(undefined);
+    setRecordedDuration(duration);
     setFile(value);
   };
 
@@ -106,6 +92,43 @@ export default function UploadScreen() {
     }
   };
 
+  const startRecording = async () => {
+    if (recordingBusy || isBusy) return;
+    setRecordingBusy(true);
+    setError(undefined);
+    setFileError(undefined);
+    setFile(undefined);
+    setPendingUpload(undefined);
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) throw new Error('Microphone access is needed to record a demo clip.');
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught : new Error('Recording could not start'));
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recorderState.isRecording || recordingBusy) return;
+    setRecordingBusy(true);
+    setError(undefined);
+    const duration = recorderState.durationMillis;
+    try {
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      if (!recorder.uri) throw new Error('The recording finished without an audio file.');
+      selectFile(await fromRecordedUri(recorder.uri), duration);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught : new Error('Recording could not be saved'));
+    } finally {
+      setRecordingBusy(false);
+    }
+  };
+
   const upload = async () => {
     if (!file || isBusy || capabilitiesLoading || !approvalSatisfied || !uploadLanguageAvailable) return;
     setError(undefined);
@@ -113,26 +136,11 @@ export default function UploadScreen() {
       setStep('hashing');
       const bytes = await readAudio(file);
       const actualSize = bytes.byteLength;
-      if (actualSize === 0) {
-        throw new Error('This file is empty. Choose a recording with audio data.');
-      }
-      if (actualSize > MAX_BYTES) {
-        throw new Error(`This file is ${formatBytes(actualSize)}. The demo accepts up to 500 MiB.`);
-      }
-      if (actualSize > quotaRemaining) {
-        throw new Error(`This workspace has ${formatBytes(quotaRemaining)} left. Delete an older recording or use a smaller file.`);
-      }
+      if (actualSize === 0) throw new Error('No audio data was found. Choose or record another clip.');
+      if (actualSize > MAX_BYTES) throw new Error(`This audio is ${formatBytes(actualSize)}. Use a file smaller than 500 MiB.`);
+      if (actualSize > quotaRemaining) throw new Error(`This demo has ${formatBytes(quotaRemaining)} of storage left. Use a smaller file.`);
       const digest = await sha256(bytes);
-      const fingerprint = JSON.stringify([
-        digest,
-        file.name,
-        actualSize,
-        file.mimeType,
-        selectedLanguage,
-        selectedMode,
-        providerDataApproved,
-        vocabItems,
-      ]);
+      const fingerprint = JSON.stringify([digest, file.name, actualSize, file.mimeType, selectedLanguage]);
       setStep('reserving');
       const uploadSession = pendingUpload?.fingerprint === fingerprint
         ? pendingUpload.session
@@ -142,8 +150,8 @@ export default function UploadScreen() {
           size_bytes: actualSize,
           sha256: digest,
           language: selectedLanguage,
-          vocabulary_hints: vocabItems,
-          mode: selectedMode,
+          vocabulary_hints: [],
+          mode: 'standard',
           provider_data_approved: providerDataApproved,
         });
       setPendingUpload({ fingerprint, session: uploadSession });
@@ -155,239 +163,187 @@ export default function UploadScreen() {
       router.replace(`/recordings/${recording.id}`);
     } catch (caught) {
       setStep('idle');
-      if (caught instanceof ApiError && caught.status >= 400 && caught.status < 500) {
-        setPendingUpload(undefined);
-      }
-      setError(caught instanceof Error ? caught : new Error('Upload failed'));
+      if (caught instanceof ApiError && caught.status >= 400 && caught.status < 500) setPendingUpload(undefined);
+      setError(caught instanceof Error ? caught : new Error('The demo run could not start'));
     }
   };
 
   const stepCopy: Record<Exclude<UploadStep, 'idle'>, string> = {
-    hashing: 'Calculating a byte-exact SHA-256 checksum…',
-    reserving: 'Checking storage quota and creating the upload session…',
-    uploading: 'Uploading original bytes to quarantine…',
-    verifying: 'Asking the API to verify and seal the original…',
+    hashing: 'Fingerprinting the audio',
+    reserving: 'Starting a pipeline run',
+    uploading: 'Sending the immutable input',
+    verifying: 'Verifying and queuing stages',
   };
 
   return (
     <AppShell>
-      <PageTitle title="Add a recording" subtitle="The original is verified and stored byte-for-byte before any transcript or intelligence work begins." />
-      <ProviderPolicyNotice />
-      <View style={[styles.columns, width < 940 && styles.columnsNarrow]}>
-        <Card style={styles.uploadCard}>
-          {!file ? (
-            <DropZone onPick={selectFile} pick={browse} />
-          ) : (
-            <View style={styles.selectedFile}>
-              <View style={styles.fileIcon}><MaterialCommunityIcons name="music-note" size={28} color={colors.coralDark} /></View>
-              <View style={styles.fileCopy}>
-                <Text numberOfLines={2} style={styles.fileName}>{file.name}</Text>
-                <Text style={styles.fileMeta}>{file.size === undefined ? 'Size checked during upload' : formatBytes(file.size)} · {file.mimeType}</Text>
-                <View style={styles.localCheck}>
-                  <MaterialCommunityIcons name="check-circle" size={15} color={colors.green} />
-                  <Text style={styles.localCheckText}>Client limits passed; content validation happens on the API</Text>
-                </View>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Remove selected file"
-                disabled={isBusy}
-                onPress={() => {
-                  setFile(undefined);
-                  setPendingUpload(undefined);
-                  setProviderDataApproved(false);
-                }}
-                style={styles.removeFile}
-              >
-                <MaterialCommunityIcons name="close" size={20} color={colors.inkMuted} />
-              </Pressable>
-            </View>
-          )}
-          {fileError ? <Notice tone="error" title="Choose another file">{fileError}</Notice> : null}
-          {error ? <Notice tone="error" title="Upload stopped">{error.message}</Notice> : null}
-          {isBusy ? (
-            <View style={styles.busyArea}>
-              <View style={uiStyles.rowBetween}>
-                <Text style={styles.busyTitle}>{stepCopy[step as Exclude<UploadStep, 'idle'>]}</Text>
-                <Text style={styles.busyStep}>{['hashing', 'reserving', 'uploading', 'verifying'].indexOf(step) + 1}/4</Text>
-              </View>
-              <View style={styles.discreteSteps}>
-                {(['hashing', 'reserving', 'uploading', 'verifying'] as const).map((item, index, all) => {
-                  const activeIndex = all.indexOf(step as Exclude<UploadStep, 'idle'>);
-                  const done = index < activeIndex;
-                  const active = index === activeIndex;
-                  return (
-                    <View key={item} style={[styles.discreteStep, done && styles.discreteStepDone, active && styles.discreteStepActive]}>
-                      {active ? <ActivityIndicator size="small" color={colors.blue} /> : done ? <MaterialCommunityIcons name="check" size={14} color={colors.white} /> : null}
-                    </View>
-                  );
-                })}
-              </View>
-              <Text style={styles.busyNote}>These are discrete client stages, not a guessed provider percentage. Keep this screen open until sealing completes.</Text>
-            </View>
-          ) : null}
+      <View style={styles.intro}>
+        <Text style={styles.eyebrow}>STEP 1 OF 2 · PROVIDE AN INPUT</Text>
+        <PageTitle title="Run the architecture demo" subtitle="Record a quick clip or use an audio file, then watch the backend publish each stage independently." />
+      </View>
 
-          <View style={styles.formSection}>
-            <Field
-              label="Transcript language"
-              hint={remoteGemini
-                ? 'The Gemini demo route is pinned to English; Auto-detect is unavailable.'
-                : 'Auto-detect remains available for the local fixture route.'}
-            >
-              <Segmented<'auto' | 'en'>
-                value={selectedLanguage}
-                onChange={setLanguage}
-                options={[
-                  {
-                    value: 'auto',
-                    label: 'Auto-detect',
-                    description: remoteGemini ? 'Unavailable for Gemini' : 'Route after validation',
-                    disabled: remoteGemini,
-                  },
-                  { value: 'en', label: 'English', description: 'Quality-gated route', disabled: !englishAvailable },
-                ]}
-              />
-            </Field>
-            <Field label="Vocabulary hints" hint={`${vocabItems.length}/50 hints · Separate names, acronyms, or jargon with commas.`}>
-              <Input
-                value={vocabulary}
-                onChangeText={setVocabulary}
-                editable={!isBusy}
-                placeholder="e.g. pgvector, Samyak, Acme Health"
-              />
-            </Field>
-            <Field label="Processing mode">
-              <Segmented<'standard' | 'deep'>
-                value={selectedMode}
-                onChange={setMode}
-                options={[
-                  { value: 'standard', label: 'Standard', description: 'Cost-first, targeted escalation' },
-                  {
-                    value: 'deep',
-                    label: 'Deep',
-                    description: deepAvailable ? 'Gemini strong-model synthesis' : capabilitiesLoading ? 'Checking Gemini capability' : 'Configured Gemini strong route required',
-                    disabled: !deepAvailable,
-                  },
-                ]}
-              />
-            </Field>
+      <View style={styles.stepRail}>
+        {[
+          ['1', 'Add audio', true],
+          ['2', 'Run pipeline', Boolean(file)],
+          ['3', 'Inspect output', false],
+        ].map(([number, label, active]) => (
+          <View key={String(number)} style={styles.stepItem}>
+            <View style={[styles.stepNumber, active && styles.stepNumberActive]}><Text style={[styles.stepNumberText, active && styles.stepNumberTextActive]}>{number}</Text></View>
+            <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>{label}</Text>
           </View>
-          {deepAvailable ? (
-            <Notice tone="info" title="Gemini Deep is available">
-              Deep requests the configured strong synthesis route under a separate recording budget. Speech and canonical citation validation remain unchanged.
-            </Notice>
-          ) : (
-            <Notice tone="info" title="Deep is unavailable">
-              The client enables Deep only when the API confirms an active Gemini strong route. Standard and fixture-safe processing remain available.
-            </Notice>
-          )}
-          {!uploadLanguageAvailable ? (
-            <Notice tone="error" title="English transcription is unavailable">
-              The Gemini demo accepts uploads only after the API advertises an English transcription route.
-            </Notice>
-          ) : null}
-          {approvalRequired ? (
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: providerDataApproved, disabled: isBusy }}
-              disabled={isBusy}
-              onPress={() => setProviderDataApproved((current) => !current)}
-              style={({ pressed }) => [
-                styles.approvalRow,
-                providerDataApproved && styles.approvalRowChecked,
-                pressed && styles.approvalRowPressed,
-              ]}
-            >
-              <View style={[styles.approvalBox, providerDataApproved && styles.approvalBoxChecked]}>
-                {providerDataApproved ? <MaterialCommunityIcons name="check" size={15} color={colors.white} /> : null}
+        ))}
+      </View>
+
+      <Card style={styles.inputCard}>
+        {!file ? (
+          <View style={[styles.sourceGrid, width < 760 && styles.sourceGridNarrow]}>
+            <View style={styles.sourceColumn}>
+              <Text style={styles.sourceLabel}>UPLOAD</Text>
+              <DropZone onPick={(value) => selectFile(value)} pick={browse} />
+            </View>
+            <View style={styles.choiceDivider}><Text style={styles.choiceDividerText}>OR</Text></View>
+            <View style={[styles.sourceColumn, styles.recorderCard, recorderState.isRecording && styles.recorderCardActive]}>
+              <Text style={styles.sourceLabel}>RECORD NOW</Text>
+              <View style={[styles.recordIcon, recorderState.isRecording && styles.recordIconActive]}>
+                <MaterialCommunityIcons name={recorderState.isRecording ? 'waveform' : 'microphone-outline'} size={34} color={recorderState.isRecording ? colors.white : colors.pine} />
               </View>
-              <Text style={styles.approvalText}>
-                {isSyntheticApprovedOnly(capabilities)
-                  ? 'I confirm this audio is synthetic or explicitly approved and contains no private, personal, confidential, or production data.'
-                  : `I confirm this audio is approved for processing under the active “${capabilities.data_policy}” provider policy.`}
+              <Text style={styles.recordTitle}>{recorderState.isRecording ? 'Recording…' : 'Use your microphone'}</Text>
+              <Text style={styles.recordBody}>{recorderState.isRecording ? formatDuration(recorderState.durationMillis) : 'Speak naturally, then stop when you have enough to test.'}</Text>
+              {recorderState.isRecording ? (
+                <View style={styles.levels} accessibilityLabel="Recording in progress">
+                  {[12, 24, 17, 31, 20, 28, 14].map((height, index) => <View key={index} style={[styles.levelBar, { height }]} />)}
+                </View>
+              ) : null}
+              <Button
+                icon={recorderState.isRecording ? 'stop' : 'record-circle-outline'}
+                variant={recorderState.isRecording ? 'danger' : 'primary'}
+                loading={recordingBusy}
+                onPress={recorderState.isRecording ? stopRecording : startRecording}
+              >
+                {recorderState.isRecording ? 'Stop recording' : 'Start recording'}
+              </Button>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.selectedFile}>
+            <View style={styles.fileIcon}><MaterialCommunityIcons name={recordedDuration ? 'microphone' : 'music-note'} size={27} color={colors.coralDark} /></View>
+            <View style={styles.fileCopy}>
+              <Text style={styles.readyLabel}>READY TO PROCESS</Text>
+              <Text numberOfLines={2} style={styles.fileName}>{recordedDuration ? 'New microphone recording' : file.name}</Text>
+              <Text style={styles.fileMeta}>
+                {[recordedDuration ? formatDuration(recordedDuration) : undefined, file.size === undefined ? undefined : formatBytes(file.size), file.mimeType].filter(Boolean).join(' · ')}
               </Text>
-            </Pressable>
-          ) : null}
-          <View style={styles.submitRow}>
-            <Button variant="ghost" disabled={isBusy} onPress={() => router.back()}>Cancel</Button>
-            <Button size="lg" icon="tray-arrow-up" disabled={!file || capabilitiesLoading || !approvalSatisfied || !uploadLanguageAvailable} loading={isBusy} onPress={upload}>
-              Verify & upload
+            </View>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={isBusy}
+              onPress={() => { setFile(undefined); setRecordedDuration(undefined); setPendingUpload(undefined); }}
+            >
+              Replace
             </Button>
           </View>
-        </Card>
+        )}
 
-        <View style={styles.sidebar}>
-          <Card style={styles.guardrailCard}>
-            <Text style={styles.sideTitle}>Demo guardrails</Text>
-            {[
-              ['file-document-outline', '500 MiB maximum file size'],
-              ['timer-sand', 'Two-hour maximum duration'],
-              ['cash-lock', '$2 automatic AI cap per recording'],
-              ['calendar-clock', '30-day retention with automatic demo sweep'],
-            ].map(([icon, label]) => (
-              <View key={label} style={styles.guardrailRow}>
-                <View style={styles.guardrailIcon}><MaterialCommunityIcons name={icon as 'timer-sand'} size={17} color={colors.pine} /></View>
-                <Text style={styles.guardrailText}>{label}</Text>
-              </View>
-            ))}
-          </Card>
-          <Card style={styles.quotaCard}>
-            <Text style={styles.sideTitle}>Workspace capacity</Text>
-            <View style={uiStyles.rowBetween}>
-              <Text style={styles.quotaLabel}>Storage remaining</Text>
-              <Text style={styles.quotaValue}>{formatBytes(quotaRemaining)}</Text>
+        {fileError ? <Notice tone="error" title="Try another input">{fileError}</Notice> : null}
+        {error ? <Notice tone="error" title="Could not continue">{error.message}</Notice> : null}
+
+        {isBusy ? (
+          <View style={styles.busyArea}>
+            <ActivityIndicator size="small" color={colors.coral} />
+            <View style={styles.busyCopy}>
+              <Text style={styles.busyTitle}>{stepCopy[step as Exclude<UploadStep, 'idle'>]}</Text>
+              <Text style={styles.busyBody}>The next screen will show each committed backend stage.</Text>
             </View>
-            <ProgressBar
-              value={Math.min(100, ((session?.workspace.retained_bytes ?? 0) / (session?.workspace.byte_limit || 5 * 1024 ** 3)) * 100)}
-              tone="pine"
-            />
-            <Text style={styles.sideBody}>Abandoned uploads and successful ephemeral media derivatives expire after 24 hours.</Text>
-          </Card>
-          <Notice tone="info" title="No invented intelligence">
-            Empty, corrupt, partial, or unsupported media ends with an actionable error. When speech is not configured, the original remains available and processing is marked partial.
-          </Notice>
+          </View>
+        ) : null}
+
+        {approvalRequired ? (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: providerDataApproved, disabled: isBusy }}
+            disabled={isBusy}
+            onPress={() => setProviderDataApproved((current) => !current)}
+            style={styles.approvalRow}
+          >
+            <View style={[styles.approvalBox, providerDataApproved && styles.approvalBoxChecked]}>
+              {providerDataApproved ? <MaterialCommunityIcons name="check" size={15} color={colors.white} /> : null}
+            </View>
+            <Text style={styles.approvalText}>This is synthetic or approved demo audio.</Text>
+          </Pressable>
+        ) : null}
+
+        <View style={styles.runRow}>
+          <View style={styles.runCopy}>
+            <Text style={styles.runTitle}>Standard cost-optimized route</Text>
+            <Text style={styles.runBody}>Cheap-first extraction, validation, and selective escalation.</Text>
+          </View>
+          <Button
+            size="lg"
+            icon="play"
+            disabled={!file || capabilitiesLoading || !approvalSatisfied || !uploadLanguageAvailable || recorderState.isRecording}
+            loading={isBusy}
+            onPress={upload}
+          >
+            Run demo
+          </Button>
         </View>
+      </Card>
+
+      <View style={styles.explainer}>
+        <MaterialCommunityIcons name="information-outline" size={18} color={colors.blue} />
+        <Text style={styles.explainerText}>Want the reasoning first? The <Text style={styles.explainerLink} onPress={() => router.push('/prompt-flow')}>Prompt flow</Text> tab shows exactly where model calls happen and where cost is avoided.</Text>
       </View>
     </AppShell>
   );
 }
 
 const styles = StyleSheet.create({
-  columns: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
-  columnsNarrow: { flexDirection: 'column' },
-  uploadCard: { flex: 1, width: '100%', minWidth: 0, gap: spacing.xl },
-  selectedFile: { minHeight: 160, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.canvas, padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
-  fileIcon: { width: 62, height: 62, borderRadius: 21, backgroundColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center' },
-  fileCopy: { flex: 1, gap: 5 },
+  intro: { gap: spacing.sm },
+  eyebrow: { color: colors.coralDark, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.2 },
+  stepRail: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl, paddingVertical: spacing.sm },
+  stepItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  stepNumber: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
+  stepNumberActive: { backgroundColor: colors.pine },
+  stepNumberText: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 10 },
+  stepNumberTextActive: { color: colors.white },
+  stepLabel: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 11 },
+  stepLabelActive: { color: colors.ink },
+  inputCard: { gap: spacing.xl },
+  sourceGrid: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xl },
+  sourceGridNarrow: { flexDirection: 'column' },
+  sourceColumn: { flex: 1, minWidth: 0, gap: spacing.md },
+  sourceLabel: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.1 },
+  choiceDivider: { alignItems: 'center', justifyContent: 'center' },
+  choiceDividerText: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 9 },
+  recorderCard: { minHeight: 245, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.xl, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.canvas, gap: spacing.md },
+  recorderCardActive: { borderColor: colors.coral, backgroundColor: colors.coralSoft },
+  recordIcon: { width: 68, height: 68, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.pineSoft },
+  recordIconActive: { backgroundColor: colors.coral },
+  recordTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 18 },
+  recordBody: { maxWidth: 280, color: colors.inkMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
+  levels: { height: 34, flexDirection: 'row', alignItems: 'center', gap: 4 },
+  levelBar: { width: 4, borderRadius: 2, backgroundColor: colors.coral },
+  selectedFile: { minHeight: 124, borderWidth: 1, borderColor: colors.green, borderRadius: radius.lg, backgroundColor: colors.greenSoft, padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  fileIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center' },
+  fileCopy: { flex: 1, minWidth: 0, gap: 4 },
+  readyLabel: { color: colors.green, fontFamily: font.medium, fontSize: 8, letterSpacing: 1 },
   fileName: { color: colors.ink, fontFamily: font.medium, fontSize: 17 },
-  fileMeta: { color: colors.inkMuted, fontSize: 12 },
-  localCheck: { flexDirection: 'row', gap: 6, alignItems: 'center', marginTop: 6 },
-  localCheckText: { flex: 1, color: colors.green, fontSize: 10 },
-  removeFile: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  busyArea: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.blueSoft },
-  busyTitle: { flex: 1, color: colors.blue, fontFamily: font.medium, fontSize: 12 },
-  busyStep: { color: colors.blue, fontFamily: font.mono, fontSize: 10 },
-  discreteSteps: { flexDirection: 'row', gap: 5 },
-  discreteStep: { flex: 1, height: 7, borderRadius: 4, backgroundColor: colors.surface },
-  discreteStepDone: { backgroundColor: colors.green, alignItems: 'center', justifyContent: 'center', height: 18 },
-  discreteStepActive: { backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', height: 18 },
-  busyNote: { color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
-  formSection: { gap: spacing.xl },
-  approvalRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.canvas },
-  approvalRowChecked: { borderColor: colors.green, backgroundColor: colors.greenSoft },
-  approvalRowPressed: { opacity: 0.8 },
+  fileMeta: { color: colors.inkMuted, fontSize: 11 },
+  busyArea: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.blueSoft },
+  busyCopy: { flex: 1, gap: 3 },
+  busyTitle: { color: colors.blue, fontFamily: font.medium, fontSize: 12 },
+  busyBody: { color: colors.inkMuted, fontSize: 10 },
+  approvalRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.canvas },
   approvalBox: { width: 22, height: 22, borderWidth: 2, borderColor: colors.borderStrong, borderRadius: 6, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   approvalBoxChecked: { borderColor: colors.green, backgroundColor: colors.green },
-  approvalText: { flex: 1, color: colors.ink, fontSize: 12, lineHeight: 19 },
-  submitRow: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' },
-  sidebar: { width: '100%', maxWidth: 330, gap: spacing.lg },
-  guardrailCard: { gap: spacing.lg, ...shadowNone },
-  sideTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 16 },
-  sideBody: { color: colors.inkMuted, fontSize: 11, lineHeight: 17 },
-  guardrailRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  guardrailIcon: { width: 34, height: 34, borderRadius: 11, backgroundColor: colors.pineSoft, alignItems: 'center', justifyContent: 'center' },
-  guardrailText: { color: colors.inkMuted, fontSize: 12 },
-  quotaCard: { gap: spacing.md, ...shadowNone },
-  quotaLabel: { color: colors.inkMuted, fontSize: 11 },
-  quotaValue: { color: colors.ink, fontFamily: font.medium, fontSize: 12 },
+  approvalText: { flex: 1, color: colors.ink, fontSize: 12 },
+  runRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xl, flexWrap: 'wrap', paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
+  runCopy: { flex: 1, minWidth: 220, gap: 4 },
+  runTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 13 },
+  runBody: { color: colors.inkMuted, fontSize: 11 },
+  explainer: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingHorizontal: spacing.sm },
+  explainerText: { flex: 1, color: colors.inkMuted, fontSize: 11, lineHeight: 17 },
+  explainerLink: { color: colors.blue, fontFamily: font.medium },
 });

@@ -1,1 +1,1 @@
-export { default } from '@/features/library/LibraryScreen';
+export { default } from '@/features/upload/UploadScreen';

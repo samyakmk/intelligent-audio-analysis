@@ -25,12 +25,12 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
     <View style={styles.brandRow} accessibilityLabel="Intelligent Audio Analysis">
       <View style={styles.brandIcon}>
-        <MaterialCommunityIcons name="bookmark-check" size={20} color={colors.white} />
+        <MaterialCommunityIcons name="transit-connection-variant" size={20} color={colors.white} />
       </View>
       {!compact ? (
         <View>
           <Text style={styles.brandName}>Intelligent Audio Analysis</Text>
-          <Text style={styles.brandSub}>EVIDENCE LAB</Text>
+          <Text style={styles.brandSub}>ARCHITECTURE DEMO</Text>
         </View>
       ) : null}
     </View>

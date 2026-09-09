@@ -28,8 +28,8 @@ const config: ExpoConfig = {
     [
       'expo-audio',
       {
-        microphonePermission: false,
-        recordAudioAndroid: false,
+        microphonePermission: 'Allow Intelligent Audio Analysis to record audio for this demo.',
+        recordAudioAndroid: true,
         enableBackgroundPlayback: false,
       },
     ],

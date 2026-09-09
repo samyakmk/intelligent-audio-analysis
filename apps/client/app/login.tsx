@@ -1,20 +1,14 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { Redirect, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandMark, Button, Notice } from '@/components/ui';
 import { useSession } from '@/providers/SessionProvider';
 import { colors, font, radius, shadow, spacing } from '@/theme';
 
-const identity = {
-  id: 'test-account',
-  name: 'Test Account',
-  role: 'Workspace Owner',
-  detail: 'Shared public demo access with upload, edit, export, deletion, and cost rights.',
-  initials: 'TA',
-};
+const identity = { id: 'test-account' };
 
 export default function LoginScreen() {
   const { session, loading, error: sessionError, login } = useSession();
@@ -22,19 +16,7 @@ export default function LoginScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [error, setError] = useState<Error>();
-  const [browserWidth, setBrowserWidth] = useState<number>();
-
-  useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const updateBrowserWidth = () => setBrowserWidth(window.innerWidth);
-    updateBrowserWidth();
-    window.addEventListener('resize', updateBrowserWidth);
-    return () => window.removeEventListener('resize', updateBrowserWidth);
-  }, []);
-
-  const responsiveWidth = Platform.OS === 'web' ? (browserWidth ?? Number.POSITIVE_INFINITY) : width;
-  const isNarrow = responsiveWidth < 680;
-  const isCompact = responsiveWidth < 1000;
+  const narrow = width < 760;
 
   if (session) return <Redirect href="/" />;
 
@@ -51,74 +33,38 @@ export default function LoginScreen() {
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={[
-        styles.root,
-        {
-          paddingTop: isNarrow ? Math.max(insets.top, 24) : insets.top,
-          paddingBottom: isNarrow ? Math.max(insets.bottom, 24) : insets.bottom,
-        },
-      ]}
-      keyboardShouldPersistTaps="handled"
-      scrollEnabled={isNarrow}
+      contentContainerStyle={[styles.root, { paddingTop: Math.max(insets.top, 24), paddingBottom: Math.max(insets.bottom, 24) }]}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.layout, isCompact && styles.layoutCompact, isNarrow && styles.layoutNarrow]}>
-        <View style={[styles.story, isCompact && styles.storyCompact]}>
-          <BrandMark />
-          <View style={styles.storyCopy}>
-            <Text style={styles.kicker}>CANONICAL EVIDENCE · SELECTIVE AI · VISIBLE COST</Text>
-            <Text accessibilityRole="header" style={[styles.hero, isCompact && styles.heroCompact, responsiveWidth < 540 && styles.heroSmall]}>
-              Turn every recording into evidence you can trust.
-            </Text>
-            <Text style={styles.heroBody}>
-              Upload audio once. Trace every summary, decision, and task back to the exact moment it came from while seeing what each stage costs.
-            </Text>
-          </View>
-          <View style={styles.promiseRow}>
+      <View style={styles.brand}><BrandMark /></View>
+      <View style={[styles.layout, narrow && styles.layoutNarrow]}>
+        <View style={styles.story}>
+          <Text style={styles.kicker}>MULTI-STAGE PROMPT ARCHITECTURE</Text>
+          <Text accessibilityRole="header" style={[styles.hero, narrow && styles.heroNarrow]}>Do less model work. Keep the useful output.</Text>
+          <Text style={styles.heroBody}>A focused demo of an audio pipeline that uses cheap, bounded prompts by default and pays for stronger reasoning only when validation finds a real problem.</Text>
+          <View style={styles.flowRow}>
             {[
-              ['transcribe', 'Complete timelines'],
-              ['text-box-search-outline', 'Cited intelligence'],
-              ['chart-timeline-variant-shimmer', 'Auditable spend'],
-            ].map(([icon, label]) => (
-              <View key={label} style={styles.promise}>
-                <MaterialCommunityIcons name={icon as 'transcribe'} size={19} color={colors.pine} />
-                <Text style={styles.promiseText}>{label}</Text>
+              ['microphone-outline', 'Audio'],
+              ['transit-connection-variant', 'Prompt stages'],
+              ['chart-waterfall', 'Cost trace'],
+            ].map(([icon, label], index, all) => (
+              <View key={label} style={styles.flowUnit}>
+                <View style={styles.flowPill}>
+                  <MaterialCommunityIcons name={icon as 'microphone-outline'} size={17} color={colors.pine} />
+                  <Text style={styles.flowText}>{label}</Text>
+                </View>
+                {index < all.length - 1 ? <MaterialCommunityIcons name="arrow-right" size={15} color={colors.borderStrong} /> : null}
               </View>
             ))}
           </View>
         </View>
 
-        <View style={[styles.loginCard, isNarrow && styles.loginCardNarrow]}>
-          <View style={styles.cardTitleArea}>
-            <Text style={styles.cardKicker}>DEMO ACCESS</Text>
-            <Text style={styles.cardTitle}>Use the shared test account</Text>
-            <Text style={styles.cardBody}>Everyone using this public account shares one owner-level workspace.</Text>
-          </View>
-          {(error ?? sessionError) ? (
-            <Notice tone="error" title="Could not sign in">{(error ?? sessionError)?.message}</Notice>
-          ) : null}
-          <View style={styles.identityList}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={submit}
-              style={({ pressed }) => [styles.identity, styles.identityActive, pressed && styles.pressed]}
-            >
-              <View style={[styles.identityAvatar, styles.identityAvatarActive]}>
-                <Text style={[styles.identityInitials, styles.identityInitialsActive]}>{identity.initials}</Text>
-              </View>
-              <View style={styles.identityCopy}>
-                <Text style={styles.identityName}>{identity.name}</Text>
-                <Text style={styles.identityRole}>{identity.role}</Text>
-                <Text style={styles.identityDetail}>{identity.detail}</Text>
-              </View>
-              <MaterialCommunityIcons name="account-arrow-right-outline" size={20} color={colors.coral} />
-            </Pressable>
-          </View>
-          <Button size="lg" loading={loading} onPress={submit} icon="arrow-right">Enter evidence lab</Button>
-          <View style={styles.disclosure}>
-            <MaterialCommunityIcons name="shield-check-outline" size={18} color={colors.green} />
-            <Text style={styles.disclosureText}>Use synthetic or approved audio until provider terms are configured and accepted.</Text>
-          </View>
+        <View style={[styles.accessCard, narrow && styles.accessCardNarrow]}>
+          <View style={styles.accessIcon}><MaterialCommunityIcons name="play" size={24} color={colors.white} /></View>
+          <Text style={styles.accessTitle}>Open the local demo</Text>
+          <Text style={styles.accessBody}>Record or upload audio, inspect the staged output, then see exactly how the prompt flow saves cost.</Text>
+          {(error ?? sessionError) ? <Notice tone="error" title="Could not open the demo">{(error ?? sessionError)?.message}</Notice> : null}
+          <Button size="lg" icon="arrow-right" loading={loading} onPress={submit}>Enter demo</Button>
         </View>
       </View>
     </ScrollView>
@@ -127,39 +73,22 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.canvas },
-  root: { flexGrow: 1, backgroundColor: colors.canvas, justifyContent: 'center', paddingHorizontal: spacing.xl },
-  layout: { width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 56 },
-  layoutCompact: { gap: spacing.xl },
-  layoutNarrow: { flexDirection: 'column', gap: spacing.xxxl, paddingVertical: spacing.xxxl },
-  story: { flex: 1, minWidth: 0, gap: 58 },
-  storyCompact: { gap: spacing.xxl },
-  storyCopy: { gap: spacing.lg },
-  kicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 10, letterSpacing: 1.5 },
-  hero: { maxWidth: 640, color: colors.ink, fontFamily: font.medium, fontSize: 52, lineHeight: 57, letterSpacing: -2.2 },
-  heroCompact: { fontSize: 42, lineHeight: 47, letterSpacing: -1.7 },
-  heroSmall: { fontSize: 38, lineHeight: 44 },
-  heroBody: { maxWidth: 570, color: colors.inkMuted, fontSize: 17, lineHeight: 27 },
-  promiseRow: { flexDirection: 'row', gap: spacing.xl, flexWrap: 'wrap' },
-  promise: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  promiseText: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 12 },
-  loginCard: { width: 430, maxWidth: '100%', flexShrink: 1, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.xl, ...shadow },
-  loginCardNarrow: { width: '100%' },
-  cardTitleArea: { gap: spacing.sm },
-  cardKicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 10, letterSpacing: 1.4 },
-  cardTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 26, letterSpacing: -0.7 },
-  cardBody: { color: colors.inkMuted, fontSize: 13, lineHeight: 19 },
-  identityList: { gap: spacing.sm },
-  identity: { minHeight: 92, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  identityActive: { borderColor: colors.pine, backgroundColor: colors.pineSoft },
-  identityAvatar: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
-  identityAvatarActive: { backgroundColor: colors.pine },
-  identityInitials: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 12 },
-  identityInitialsActive: { color: colors.white },
-  identityCopy: { flex: 1, gap: 2 },
-  identityName: { color: colors.ink, fontFamily: font.medium, fontSize: 14 },
-  identityRole: { color: colors.coralDark, fontSize: 11 },
-  identityDetail: { color: colors.inkMuted, fontSize: 10, lineHeight: 14, marginTop: 2 },
-  disclosure: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
-  disclosureText: { flex: 1, color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
-  pressed: { opacity: 0.72 },
+  root: { flexGrow: 1, minHeight: '100%', paddingHorizontal: spacing.xxxl },
+  brand: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingTop: spacing.lg },
+  layout: { flex: 1, width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 72, paddingVertical: spacing.xxxl },
+  layoutNarrow: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.xxl },
+  story: { flex: 1.25, gap: spacing.xl },
+  kicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.4 },
+  hero: { maxWidth: 650, color: colors.ink, fontFamily: font.medium, fontSize: 54, lineHeight: 59, letterSpacing: -2 },
+  heroNarrow: { fontSize: 39, lineHeight: 45, letterSpacing: -1.2 },
+  heroBody: { maxWidth: 620, color: colors.inkMuted, fontSize: 16, lineHeight: 25 },
+  flowRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: spacing.sm },
+  flowUnit: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  flowPill: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.pineSoft },
+  flowText: { color: colors.pine, fontFamily: font.medium, fontSize: 11 },
+  accessCard: { flex: 0.75, maxWidth: 390, padding: spacing.xxl, borderWidth: 1, borderColor: colors.border, borderRadius: radius.xl, backgroundColor: colors.surface, gap: spacing.lg, ...shadow },
+  accessCardNarrow: { width: '100%', maxWidth: '100%' },
+  accessIcon: { width: 52, height: 52, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.coral },
+  accessTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 24, letterSpacing: -0.5 },
+  accessBody: { color: colors.inkMuted, fontSize: 13, lineHeight: 20 },
 });

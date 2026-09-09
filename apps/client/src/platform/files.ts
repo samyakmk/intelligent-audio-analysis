@@ -1,6 +1,10 @@
 import * as Crypto from 'expo-crypto';
 import * as DocumentPicker from 'expo-document-picker';
 
+import { recordingFilename } from './recordingFile';
+
+export { recordingFilename } from './recordingFile';
+
 export const audioMimeTypes = [
   'audio/mpeg',
   'audio/mp4',
@@ -27,6 +31,29 @@ export function fromWebFile(file: File): PickedAudio {
     size: file.size,
     mimeType: file.type || 'application/octet-stream',
     file,
+  };
+}
+
+function runtimePlatform(): 'web' | 'native' {
+  return typeof window !== 'undefined' && typeof document !== 'undefined' ? 'web' : 'native';
+}
+
+export async function fromRecordedUri(uri: string, timestamp = Date.now()): Promise<PickedAudio> {
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error('The new recording could not be read. Please record it again.');
+  const blob = await response.blob();
+  const web = runtimePlatform() === 'web';
+  const mimeType = blob.type || (web ? 'audio/webm' : 'audio/mp4');
+  const name = recordingFilename(timestamp, mimeType, web ? 'web' : 'native');
+  const webFile = web && typeof File !== 'undefined'
+    ? new File([blob], name, { type: mimeType })
+    : undefined;
+  return {
+    uri,
+    name,
+    size: blob.size,
+    mimeType,
+    file: webFile,
   };
 }
 
