@@ -115,7 +115,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     } catch (caught) {
       if (sessionGeneration.current.isCurrent(generation)) {
-        setError(caught instanceof Error ? caught : new Error('Demo login failed'));
+        setError(caught instanceof Error ? caught : new Error('Could not open the demo'));
       }
       throw caught;
     } finally {

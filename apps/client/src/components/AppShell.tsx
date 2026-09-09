@@ -34,7 +34,7 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
   const desktop = width >= 760;
 
   if (loading) return <View style={styles.loading}><LoadingState label="Opening the demo…" /></View>;
-  if (!session) return <Redirect href="/login" />;
+  if (!session) return <Redirect href="/welcome" />;
 
   const isActive = (item: (typeof navigation)[number]) => (
     item.href === '/'
@@ -59,7 +59,7 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Back to introduction"
-          onPress={() => router.push('/login')}
+          onPress={() => router.push('/welcome')}
           style={({ pressed }) => [styles.brandLink, pressed && styles.pressed]}
         >
           <BrandMark compact={!desktop} />

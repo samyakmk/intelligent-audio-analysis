@@ -169,23 +169,23 @@ export default function UploadScreen() {
   };
 
   const stepCopy: Record<Exclude<UploadStep, 'idle'>, string> = {
-    hashing: 'Fingerprinting the audio',
-    reserving: 'Starting a pipeline run',
-    uploading: 'Sending the immutable input',
-    verifying: 'Verifying and queuing stages',
+    hashing: 'Checking the audio',
+    reserving: 'Preparing the run',
+    uploading: 'Uploading the source audio',
+    verifying: 'Starting the pipeline',
   };
 
   return (
     <AppShell>
       <View style={styles.intro}>
-        <Text style={styles.eyebrow}>STEP 1 OF 2 · PROVIDE AN INPUT</Text>
-        <PageTitle title="Run the architecture demo" subtitle="Record a quick clip or use an audio file, then watch the backend publish each stage independently." />
+        <Text style={styles.eyebrow}>START A RUN</Text>
+        <PageTitle title="Add a recording" subtitle="Record a short clip or choose an audio file. The backend publishes each stage as it completes." />
       </View>
 
       <View style={styles.stepRail}>
         {[
           ['1', 'Add audio', true],
-          ['2', 'Run pipeline', Boolean(file)],
+          ['2', 'Process audio', Boolean(file)],
           ['3', 'Inspect output', false],
         ].map(([number, label, active]) => (
           <View key={String(number)} style={styles.stepItem}>
@@ -209,7 +209,7 @@ export default function UploadScreen() {
                 <MaterialCommunityIcons name={recorderState.isRecording ? 'waveform' : 'microphone-outline'} size={34} color={recorderState.isRecording ? colors.white : colors.pine} />
               </View>
               <Text style={styles.recordTitle}>{recorderState.isRecording ? 'Recording…' : 'Use your microphone'}</Text>
-              <Text style={styles.recordBody}>{recorderState.isRecording ? formatDuration(recorderState.durationMillis) : 'Speak naturally, then stop when you have enough to test.'}</Text>
+              <Text style={styles.recordBody}>{recorderState.isRecording ? formatDuration(recorderState.durationMillis) : 'Speak naturally, then stop when you are ready.'}</Text>
               {recorderState.isRecording ? (
                 <View style={styles.levels} accessibilityLabel="Recording in progress">
                   {[12, 24, 17, 31, 20, 28, 14].map((height, index) => <View key={index} style={[styles.levelBar, { height }]} />)}
@@ -254,7 +254,7 @@ export default function UploadScreen() {
             <ActivityIndicator size="small" color={colors.coral} />
             <View style={styles.busyCopy}>
               <Text style={styles.busyTitle}>{stepCopy[step as Exclude<UploadStep, 'idle'>]}</Text>
-              <Text style={styles.busyBody}>The next screen will show each committed backend stage.</Text>
+              <Text style={styles.busyBody}>The next screen updates as each backend stage is published.</Text>
             </View>
           </View>
         ) : null}
@@ -276,8 +276,8 @@ export default function UploadScreen() {
 
         <View style={styles.runRow}>
           <View style={styles.runCopy}>
-            <Text style={styles.runTitle}>Standard cost-optimized route</Text>
-            <Text style={styles.runBody}>Cheap-first extraction, validation, and selective escalation.</Text>
+            <Text style={styles.runTitle}>Cost-optimized by default</Text>
+            <Text style={styles.runBody}>Use the lower-cost model first; escalate only when validation fails.</Text>
           </View>
           <Button
             size="lg"
@@ -293,7 +293,7 @@ export default function UploadScreen() {
 
       <View style={styles.explainer}>
         <MaterialCommunityIcons name="information-outline" size={18} color={colors.blue} />
-        <Text style={styles.explainerText}>Want the reasoning first? The <Text style={styles.explainerLink} onPress={() => router.push('/prompt-flow')}>Prompt flow</Text> tab shows exactly where model calls happen and where cost is avoided.</Text>
+        <Text style={styles.explainerText}>Want to see how it works? <Text style={styles.explainerLink} onPress={() => router.push('/prompt-flow')}>Prompt flow</Text> maps each model call and the checks between them.</Text>
       </View>
     </AppShell>
   );

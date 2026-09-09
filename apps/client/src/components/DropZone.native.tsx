@@ -9,7 +9,7 @@ export function DropZone({ pick }: { onPick(file: PickedAudio): void; pick(): vo
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Choose an audio file" onPress={pick} style={({ pressed }) => [styles.root, pressed && styles.pressed]}>
       <View style={styles.icon}><MaterialCommunityIcons name="waveform" size={31} color={colors.coralDark} /></View>
-      <Text style={styles.title}>Choose a recording</Text>
+      <Text style={styles.title}>Choose an audio file</Text>
       <Text style={styles.body}>MP3, M4A/AAC, WAV, FLAC, OGG, or WebM</Text>
       <Button variant="secondary" icon="folder-open-outline" onPress={pick}>Browse files</Button>
     </Pressable>

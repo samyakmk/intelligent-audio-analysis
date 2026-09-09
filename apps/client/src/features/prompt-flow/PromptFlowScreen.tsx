@@ -10,16 +10,16 @@ const stages = [
   {
     number: '01',
     title: 'Gate the transcript',
-    body: 'Check completeness and build topic-sized windows before asking a model to reason.',
-    route: 'Deterministic',
+    body: 'Validate the transcript and split it into topic-sized windows before any model call.',
+    route: 'Code only',
     tone: 'free' as const,
     icon: 'shield-check-outline' as const,
   },
   {
     number: '02',
     title: 'Extract candidates',
-    body: 'One small structured prompt per window finds facts, decisions, actions, and their exact evidence.',
-    route: 'Cheap model',
+    body: 'A small structured prompt extracts facts, decisions, actions, and exact evidence from each window.',
+    route: 'Lower-cost model',
     tone: 'cheap' as const,
     icon: 'filter-variant' as const,
   },
@@ -27,31 +27,31 @@ const stages = [
     number: '03',
     title: 'Normalize + merge',
     body: 'Code resolves dates and owners, deduplicates candidates, and flags contradictions.',
-    route: 'Deterministic',
+    route: 'Code only',
     tone: 'free' as const,
     icon: 'source-merge' as const,
   },
   {
     number: '04',
     title: 'Synthesize compactly',
-    body: 'A small prompt creates the title and summary from candidates—not the full transcript again.',
-    route: 'Cheap model',
+    body: 'A small prompt writes the title and summary from merged candidates—not the transcript.',
+    route: 'Lower-cost model',
     tone: 'cheap' as const,
     icon: 'text-box-edit-outline' as const,
   },
   {
     number: '05',
     title: 'Validate evidence',
-    body: 'Schema, citation, and required-field checks reject unsupported output before publication.',
-    route: 'Deterministic',
+    body: 'Schema and citation checks block unsupported output before publication.',
+    route: 'Code only',
     tone: 'free' as const,
     icon: 'check-decagram-outline' as const,
   },
   {
     number: '06',
     title: 'Repair only failures',
-    body: 'Only an invalid or ambiguous unit is retried; the strong model sees a bounded evidence slice.',
-    route: 'Strong only if needed',
+    body: 'Retry only the failed unit. The strong model sees a small evidence slice, not the full transcript.',
+    route: 'Strong model if needed',
     tone: 'strong' as const,
     icon: 'arrow-up-bold-circle-outline' as const,
   },
@@ -88,8 +88,8 @@ export default function PromptFlowScreen() {
       <View style={styles.intro}>
         <Text style={styles.eyebrow}>THE CORE IDEA</Text>
         <PageTitle
-          title="Spend intelligence only where it helps"
-          subtitle="Break one expensive full-history prompt into bounded jobs, reuse their outputs, and escalate only the pieces that fail validation."
+          title="Use expensive reasoning only when needed"
+          subtitle="Run small, bounded prompts first. Deterministic checks isolate the few outputs that need a stronger model."
           action={<Button icon="play" onPress={() => router.push('/')}>Try it</Button>}
         />
       </View>
@@ -97,15 +97,15 @@ export default function PromptFlowScreen() {
       <Card style={styles.principleCard}>
         <View style={styles.principleMark}><MaterialCommunityIcons name="transit-connection-variant" size={27} color={colors.white} /></View>
         <View style={styles.principleCopy}>
-          <Text style={styles.principleKicker}>ONE TRANSCRIPT IN, ONE CANONICAL BUNDLE OUT</Text>
-          <Text style={styles.principleText}>The full transcript is segmented once. Downstream prompts operate on the smallest useful context and every answer must point back to evidence.</Text>
+          <Text style={styles.principleKicker}>ONE TRANSCRIPT IN, GROUNDED OUTPUT OUT</Text>
+          <Text style={styles.principleText}>Each downstream prompt sees only the context it needs, and every claim links back to evidence.</Text>
         </View>
       </Card>
 
       <View style={styles.legend}>
-        <LegendDot color={colors.green} label="Code / no model spend" />
-        <LegendDot color={colors.blue} label="Cheap model" />
-        <LegendDot color={colors.coral} label="Selective strong model" />
+        <LegendDot color={colors.green} label="Code only" />
+        <LegendDot color={colors.blue} label="Lower-cost model" />
+        <LegendDot color={colors.coral} label="Strong model if needed" />
       </View>
 
       <View style={[styles.flow, narrow && styles.flowNarrow]}>
@@ -173,13 +173,13 @@ export default function PromptFlowScreen() {
           <View style={styles.vsLine}><View style={styles.vsRule} /><Text style={styles.vsText}>BECOMES</Text><View style={styles.vsRule} /></View>
           <View style={[styles.comparisonBlock, styles.comparisonOptimized]}>
             <Text style={[styles.comparisonLabel, styles.comparisonLabelOptimized]}>OPTIMIZED ROUTE</Text>
-            <Text style={styles.formula}>cheap window extraction + compact synthesis</Text>
+            <Text style={styles.formula}>lower-cost window extraction + compact synthesis</Text>
             <Text style={styles.formulaAccent}>+ escalation rate × targeted strong repair</Text>
           </View>
           <View style={styles.savingRules}>
-            <SavingRule icon="cached" text="Reuse transcript and candidate artifacts" />
+            <SavingRule icon="cached" text="Reuse transcripts and extracted candidates" />
             <SavingRule icon="code-braces" text="Keep deterministic work out of LLMs" />
-            <SavingRule icon="target" text="Pay premium rates for failing units only" />
+            <SavingRule icon="target" text="Use the strong model for failed units only" />
           </View>
         </Card>
       </View>

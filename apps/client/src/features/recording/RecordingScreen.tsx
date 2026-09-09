@@ -87,9 +87,9 @@ export default function RecordingScreen() {
     <AppShell>
       <View style={styles.header}>
         <View style={styles.headerCopy}>
-          <Button size="sm" variant="ghost" icon="arrow-left" onPress={() => router.push('/results')}>Results</Button>
+          <Button size="sm" variant="ghost" icon="arrow-left" onPress={() => router.push('/results')}>All runs</Button>
           <View style={styles.titleLine}>
-            <Text accessibilityRole="header" style={styles.title}>{recording.title}</Text>
+            <Text accessibilityRole="header" style={styles.title}>{recording.is_fixture ? 'Complete pipeline example' : recording.title}</Text>
             <StatusBadge state={recording.state} />
           </View>
           <Text style={styles.meta}>{formatDuration(recording.duration_ms)} · {formatBytes(recording.size_bytes)} · {formatDate(recording.created_at, true)}</Text>
@@ -128,15 +128,15 @@ export default function RecordingScreen() {
 
 function ReadinessPanel({ recording }: { recording: Recording }) {
   const items = [
-    ['Original', 'original_ready', 'file-music-outline'],
+    ['Source audio', 'original_ready', 'file-music-outline'],
     ['Transcript', 'transcript_ready', 'text-box-check-outline'],
-    ['Intelligence', 'intelligence_ready', 'lightbulb-on-outline'],
-    ['Index', 'indexed_ready', 'database-search-outline'],
+    ['Grounded output', 'intelligence_ready', 'lightbulb-on-outline'],
+    ['Search index', 'indexed_ready', 'database-search-outline'],
   ] as const;
   const issue = recording.issues?.[0];
   return (
     <Card style={styles.readinessCard}>
-      <Text style={styles.readinessLabel}>BACKEND PUBLICATION FLOW</Text>
+      <Text style={styles.readinessLabel}>PUBLISHED BACKEND STAGES</Text>
       <View style={styles.assetGrid}>
         {items.map(([label, key, icon], index) => {
           const ready = recording.readiness[key];
@@ -172,16 +172,15 @@ function ReadinessPanel({ recording }: { recording: Recording }) {
 
 function OverviewPane({ recording, intelligence, error, onSeek }: { recording: Recording; intelligence?: RecordingIntelligence; error?: Error; onSeek(ms: number): void }) {
   if (!recording.readiness.intelligence_ready) {
-    return <Card><EmptyState icon="lightbulb-off-outline" title="Grounded output is not ready" body="The pipeline publishes this section only after transcript, schema, and citation checks pass." /></Card>;
+    return <Card><EmptyState icon="lightbulb-off-outline" title="Grounded output is not ready" body="This section appears after the transcript, schema, and citation checks pass." /></Card>;
   }
   if (error) return <Card><ErrorState error={error} /></Card>;
-  if (!intelligence) return <Card><EmptyState icon="file-question-outline" title="No intelligence bundle" body="Refresh this run to load the canonical artifact." /></Card>;
+  if (!intelligence) return <Card><EmptyState icon="file-question-outline" title="Output unavailable" body="Refresh this run to load the published result." /></Card>;
   return (
     <View style={styles.paneStack}>
       <Card style={styles.paneCard}>
-        <SectionTitle title="Summary" subtitle={`Canonical bundle v${intelligence.version}`} />
+        <SectionTitle title="Summary" subtitle={`Published output · v${intelligence.version}`} />
         <Text style={styles.summary}>{intelligence.summary.short}</Text>
-        {intelligence.summary.detailed ? <Text style={styles.bodyText}>{intelligence.summary.detailed}</Text> : null}
         <CitationRow citations={intelligence.summary.evidence} onSeek={onSeek} />
       </Card>
       <View style={styles.outputGrid}>
@@ -199,9 +198,9 @@ function OverviewPane({ recording, intelligence, error, onSeek }: { recording: R
 }
 
 function TranscriptPane({ recording, transcript, error, onSeek }: { recording: Recording; transcript?: Transcript; error?: Error; onSeek(ms: number): void }) {
-  if (!recording.readiness.transcript_ready) return <Card><EmptyState icon="text-box-remove-outline" title="Transcript is not ready" body="No downstream output is invented when transcription cannot complete." /></Card>;
+  if (!recording.readiness.transcript_ready) return <Card><EmptyState icon="text-box-remove-outline" title="Transcript is not ready" body="Transcription must finish before downstream stages can run." /></Card>;
   if (error) return <Card><ErrorState error={error} /></Card>;
-  if (!transcript) return <Card><EmptyState icon="file-question-outline" title="Transcript unavailable" body="Refresh this run to load the canonical transcript." /></Card>;
+  if (!transcript) return <Card><EmptyState icon="file-question-outline" title="Transcript unavailable" body="Refresh this run to load the published transcript." /></Card>;
   return (
     <Card style={styles.paneCard}>
       <SectionTitle title="Timestamped transcript" subtitle={`${transcript.segments.length} segments · version ${transcript.version}`} />
@@ -265,12 +264,12 @@ function RecordingCostPane({ recordingId }: { recordingId: string }) {
   return (
     <View style={styles.paneStack}>
       <View style={styles.costMetrics}>
-        <Metric label="This run" value={formatMoney(costs.estimated_incurred_usd)} />
-        <Metric label="Strong baseline" value={formatMoney(costs.baseline_estimate_usd)} />
-        <Metric label="Modeled delta" value={formatMoney(costs.modeled_delta_usd)} accent />
+        <Metric label="Run cost" value={formatMoney(costs.estimated_incurred_usd)} />
+        <Metric label="Baseline estimate" value={formatMoney(costs.baseline_estimate_usd)} />
+        <Metric label="Modeled difference" value={formatMoney(costs.modeled_delta_usd)} accent />
       </View>
       <Card style={styles.paneCard}>
-        <SectionTitle title="Model-call trace" subtitle={`${costs.events.length} paid or reused operations`} />
+        <SectionTitle title="Model-call trace" subtitle={`${costs.events.length} model operations`} />
         {costs.events.map((event) => (
           <View key={event.id} style={styles.costEvent}>
             <View style={styles.costRoute}>
@@ -330,7 +329,6 @@ const styles = StyleSheet.create({
   outputGrid: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.xl },
   outputCard: { flex: 1, minWidth: 300 },
   summary: { color: colors.ink, fontFamily: font.medium, fontSize: 19, lineHeight: 29 },
-  bodyText: { color: colors.inkMuted, fontSize: 14, lineHeight: 23 },
   evidenceList: { gap: spacing.lg },
   evidenceItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   evidenceNumber: { width: 26, height: 26, borderRadius: 9, backgroundColor: colors.pineSoft, alignItems: 'center', justifyContent: 'center' },

@@ -42,7 +42,7 @@ export function DropZone({ onPick, pick }: { onPick(file: PickedAudio): void; pi
       <div style={{ width: 64, height: 64, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', background: colors.coralSoft }}>
         <MaterialCommunityIcons name="waveform" size={31} color={colors.coralDark} />
       </div>
-      <div style={{ color: colors.ink, fontWeight: 650, fontSize: 18 }}>Drop your recording here</div>
+      <div style={{ color: colors.ink, fontWeight: 650, fontSize: 18 }}>Drop an audio file here</div>
       <div style={{ color: colors.inkMuted, fontSize: 13, lineHeight: '19px' }}>MP3, M4A/AAC, WAV, FLAC, OGG, or WebM</div>
       <Button variant="secondary" icon="folder-open-outline" onPress={pick}>Choose audio file</Button>
     </div>

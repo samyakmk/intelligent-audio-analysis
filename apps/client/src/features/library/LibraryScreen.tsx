@@ -37,16 +37,16 @@ export default function LibraryScreen() {
   return (
     <AppShell>
       <View style={styles.intro}>
-        <Text style={styles.eyebrow}>STEP 2 OF 2 · INSPECT THE OUTPUT</Text>
+        <Text style={styles.eyebrow}>RUN OUTPUT</Text>
         <PageTitle
-          title="Pipeline results"
-          subtitle="Open a run to see independently published assets, grounded output, and the cost route."
+          title="Inspect a run"
+          subtitle="Open a run to review each published stage, its evidence, and model cost."
           action={<Button icon="plus" onPress={() => router.push('/')}>New run</Button>}
         />
       </View>
 
       {resource.loading ? (
-        <View style={styles.loading}><ActivityIndicator color={colors.coral} /><Text style={styles.loadingText}>Loading demo runs…</Text></View>
+        <View style={styles.loading}><ActivityIndicator color={colors.coral} /><Text style={styles.loadingText}>Loading runs…</Text></View>
       ) : resource.error ? (
         <Card><ErrorState error={resource.error} onRetry={resource.reload} /></Card>
       ) : (
@@ -60,16 +60,16 @@ export default function LibraryScreen() {
             >
               <View style={styles.featuredIcon}><MaterialCommunityIcons name="flask-outline" size={24} color={colors.white} /></View>
               <View style={styles.featuredCopy}>
-                <Text style={styles.featuredKicker}>COMPLETE EXAMPLE</Text>
-                <Text style={styles.featuredTitle}>{fixture.title}</Text>
-                <Text style={styles.featuredBody}>See the full transcript → structured intelligence → cost trace flow without recording anything first.</Text>
+                <Text style={styles.featuredKicker}>READY-MADE RUN</Text>
+                <Text style={styles.featuredTitle}>Complete pipeline example</Text>
+                <Text style={styles.featuredBody}>Explore the transcript, grounded output, and cost trace without recording anything first.</Text>
               </View>
               <MaterialCommunityIcons name="arrow-right" size={22} color={colors.pine} />
             </Pressable>
           ) : null}
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your demo runs</Text>
+            <Text style={styles.sectionTitle}>Your runs</Text>
             <Text style={styles.sectionCount}>{runs.length}</Text>
           </View>
 
@@ -78,8 +78,8 @@ export default function LibraryScreen() {
               <EmptyState
                 icon="microphone-outline"
                 title="No runs yet"
-                body="Record a short clip or upload audio to start the pipeline."
-                action={<Button icon="play" onPress={() => router.push('/')}>Run the demo</Button>}
+                body="Record a short clip or choose an audio file to start."
+                action={<Button icon="play" onPress={() => router.push('/')}>Start a run</Button>}
               />
             </Card>
           ) : (
@@ -116,7 +116,7 @@ function RunRow({ recording, onOpen }: { recording: Recording; onOpen(): void })
           {(['original_ready', 'transcript_ready', 'intelligence_ready', 'indexed_ready'] as const).map((key) => (
             <View key={key} style={[styles.stageDot, recording.readiness[key] && styles.stageDotReady]} />
           ))}
-          <Text style={styles.stageText}>{activeStage?.message ?? `${readyCount} of 4 backend assets ready`}</Text>
+          <Text style={styles.stageText}>{activeStage?.message ?? `${readyCount} of 4 outputs ready`}</Text>
         </View>
       </View>
       {activeStage ? <ActivityIndicator size="small" color={colors.blue} /> : <MaterialCommunityIcons name="chevron-right" size={23} color={colors.inkFaint} />}

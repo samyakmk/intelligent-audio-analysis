@@ -10,7 +10,7 @@ import { colors, font, radius, shadow, spacing } from '@/theme';
 
 const identity = { id: 'test-account' };
 
-export default function LoginScreen() {
+export default function WelcomeScreen() {
   const { session, loading, error: sessionError, login } = useSession();
   const router = useRouter();
   const { height, width } = useWindowDimensions();
@@ -28,7 +28,7 @@ export default function LoginScreen() {
       await login(identity.id);
       router.replace('/');
     } catch (caught) {
-      setError(caught instanceof Error ? caught : new Error('Demo login failed'));
+      setError(caught instanceof Error ? caught : new Error('Could not open the demo'));
     }
   };
 
@@ -49,9 +49,9 @@ export default function LoginScreen() {
       <View style={styles.brand}><BrandMark /></View>
       <View style={[styles.layout, narrow && styles.layoutNarrow]}>
         <View style={styles.story}>
-          <Text style={styles.kicker}>MULTI-STAGE PROMPT ARCHITECTURE</Text>
+          <Text style={styles.kicker}>COST-AWARE PROMPT PIPELINE</Text>
           <Text accessibilityRole="header" style={[styles.hero, narrow && styles.heroNarrow]}>Do less model work. Keep the useful output.</Text>
-          <Text style={styles.heroBody}>A focused demo of an audio pipeline that uses cheap, bounded prompts by default and pays for stronger reasoning only when validation finds a real problem.</Text>
+          <Text style={styles.heroBody}>See how an audio pipeline produces grounded output with small prompts, deterministic checks, and selective use of a stronger model.</Text>
           <View style={styles.flowRow}>
             {[
               ['microphone-outline', 'Audio'],
@@ -71,8 +71,8 @@ export default function LoginScreen() {
 
         <View style={[styles.accessCard, narrow && styles.accessCardNarrow]}>
           <View style={styles.accessIcon}><MaterialCommunityIcons name="play" size={24} color={colors.white} /></View>
-          <Text style={styles.accessTitle}>Open the local demo</Text>
-          <Text style={styles.accessBody}>Record or upload audio, inspect the staged output, then see exactly how the prompt flow saves cost.</Text>
+          <Text style={styles.accessTitle}>Try the pipeline</Text>
+          <Text style={styles.accessBody}>Record or upload a short clip, then inspect each output and its model cost.</Text>
           {(error ?? sessionError) ? <Notice tone="error" title="Could not open the demo">{(error ?? sessionError)?.message}</Notice> : null}
           <Button size="lg" icon="arrow-right" loading={loading} onPress={submit}>Enter demo</Button>
         </View>
