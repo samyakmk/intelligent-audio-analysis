@@ -56,7 +56,14 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
   return (
     <View style={styles.root}>
       <View style={[styles.header, { paddingTop: Math.max(insets.top, desktop ? 16 : 10) }]}>
-        <BrandMark compact={!desktop} />
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Back to introduction"
+          onPress={() => router.push('/login')}
+          style={({ pressed }) => [styles.brandLink, pressed && styles.pressed]}
+        >
+          <BrandMark compact={!desktop} />
+        </Pressable>
         {desktop ? (
           <View style={styles.nav} accessibilityRole="menu">
             {navigation.map((item) => {
@@ -120,6 +127,7 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.canvas },
   loading: { flex: 1, justifyContent: 'center', backgroundColor: colors.canvas },
+  brandLink: { borderRadius: 12 },
   header: { zIndex: 10, minHeight: 74, paddingHorizontal: spacing.xxl, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xl },
   nav: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   navItem: { minHeight: 42, paddingHorizontal: spacing.lg, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

@@ -1,5 +1,5 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
-import { Redirect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,15 +13,17 @@ const identity = { id: 'test-account' };
 export default function LoginScreen() {
   const { session, loading, error: sessionError, login } = useSession();
   const router = useRouter();
-  const { width } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [error, setError] = useState<Error>();
-  const narrow = width < 760;
-
-  if (session) return <Redirect href="/" />;
+  const narrow = width < 720;
 
   const submit = async () => {
     setError(undefined);
+    if (session) {
+      router.replace('/');
+      return;
+    }
     try {
       await login(identity.id);
       router.replace('/');
@@ -33,7 +35,15 @@ export default function LoginScreen() {
   return (
     <ScrollView
       style={styles.scroll}
-      contentContainerStyle={[styles.root, { paddingTop: Math.max(insets.top, 24), paddingBottom: Math.max(insets.bottom, 24) }]}
+      contentContainerStyle={[
+        styles.root,
+        narrow && styles.rootNarrow,
+        {
+          minHeight: height,
+          paddingTop: Math.max(insets.top, narrow ? 20 : 16),
+          paddingBottom: Math.max(insets.bottom, narrow ? 24 : 16),
+        },
+      ]}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.brand}><BrandMark /></View>
@@ -73,9 +83,10 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.canvas },
-  root: { flexGrow: 1, minHeight: '100%', paddingHorizontal: spacing.xxxl },
-  brand: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingTop: spacing.lg },
-  layout: { flex: 1, width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 72, paddingVertical: spacing.xxxl },
+  root: { flexGrow: 1, paddingHorizontal: spacing.xxxl },
+  rootNarrow: { paddingHorizontal: spacing.lg },
+  brand: { width: '100%', maxWidth: 1120, alignSelf: 'center', paddingTop: spacing.sm },
+  layout: { flex: 1, width: '100%', maxWidth: 1120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: spacing.xxxl, paddingVertical: spacing.xl },
   layoutNarrow: { flexDirection: 'column', alignItems: 'stretch', gap: spacing.xxl },
   story: { flex: 1.25, gap: spacing.xl },
   kicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.4 },
