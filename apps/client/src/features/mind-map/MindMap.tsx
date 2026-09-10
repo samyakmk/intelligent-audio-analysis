@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, CitationChip, Notice, SectionTitle } from '@/components/ui';
+import type { EvidenceRange } from '@/lib/evidence';
 import { formatDuration } from '@/lib/format';
 import { downloadText } from '@/platform/download';
 import { colors, font, radius, spacing } from '@/theme';
@@ -19,7 +20,7 @@ export function MindMap({
   recordingTitle: string;
   intelligenceTitle: string;
   topics: Topic[];
-  onSeek(ms: number): void;
+  onSeek(range: EvidenceRange): void;
 }) {
   const map = useMemo(() => buildMindMap(intelligenceTitle || recordingTitle, topics), [intelligenceTitle, recordingTitle, topics]);
   const [exporting, setExporting] = useState(false);
@@ -74,7 +75,7 @@ export function MindMap({
   );
 }
 
-function Branch({ node, onSeek, depth = 0 }: { node: MindMapNode; onSeek(ms: number): void; depth?: number }) {
+function Branch({ node, onSeek, depth = 0 }: { node: MindMapNode; onSeek(range: EvidenceRange): void; depth?: number }) {
   const citation = node.evidence[0];
   const firstInterval = node.intervals[0];
 
@@ -84,8 +85,8 @@ function Branch({ node, onSeek, depth = 0 }: { node: MindMapNode; onSeek(ms: num
         {citation ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${node.label}, play first supporting source at ${formatDuration(citation.start_ms)}`}
-            onPress={() => onSeek(citation.start_ms)}
+            accessibilityLabel={`${node.label}, play first supporting source from ${formatDuration(citation.start_ms)} to ${formatDuration(citation.end_ms)}`}
+            onPress={() => onSeek(citation)}
             style={({ pressed }) => [styles.nodeTarget, pressed && styles.nodeTargetPressed]}
           >
             <View style={[styles.nodeDot, depth > 0 && styles.nodeDotNested]} />
@@ -97,7 +98,7 @@ function Branch({ node, onSeek, depth = 0 }: { node: MindMapNode; onSeek(ms: num
             <NodeCopy node={node} firstInterval={firstInterval} />
           </View>
         )}
-        {citation ? <CitationChip citation={citation} onPress={() => onSeek(citation.start_ms)} /> : null}
+        {citation ? <CitationChip citation={citation} onPress={() => onSeek(citation)} /> : null}
       </View>
       {node.children.length ? (
         <View style={styles.children}>

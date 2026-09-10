@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
+import { LocalAudioPlayer } from '@/components/AudioPlayer';
 import { DropZone } from '@/components/DropZone';
 import { Button, Card, Notice, PageTitle } from '@/components/ui';
 import {
@@ -27,9 +28,12 @@ import { useSession } from '@/providers/SessionProvider';
 import { colors, font, radius, spacing } from '@/theme';
 import type { UploadSession } from '@/types/api';
 
+import { demoAudioSamples, loadDemoAudioSample } from './demoSamples';
+
 const MAX_BYTES = 500 * 1024 * 1024;
 
 type UploadStep = 'idle' | 'hashing' | 'reserving' | 'uploading' | 'verifying';
+type InputSource = 'upload' | 'recording' | 'sample';
 
 interface PendingUpload {
   fingerprint: string;
@@ -44,7 +48,10 @@ export default function UploadScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 100);
   const [file, setFile] = useState<PickedAudio>();
-  const [recordedDuration, setRecordedDuration] = useState<number>();
+  const [inputSource, setInputSource] = useState<InputSource>();
+  const [selectedDuration, setSelectedDuration] = useState<number>();
+  const [selectedLabel, setSelectedLabel] = useState<string>();
+  const [sampleLoading, setSampleLoading] = useState<string>();
   const [recordingBusy, setRecordingBusy] = useState(false);
   const [step, setStep] = useState<UploadStep>('idle');
   const [error, setError] = useState<Error>();
@@ -59,36 +66,60 @@ export default function UploadScreen() {
   const selectedLanguage = resolveUploadLanguage(capabilities, 'auto');
   const quotaRemaining = Math.max(0, (session?.workspace.byte_limit ?? 5 * 1024 ** 3) - (session?.workspace.retained_bytes ?? 0));
 
-  const selectFile = (value: PickedAudio, duration?: number) => {
+  const clearFile = () => {
+    setFile(undefined);
+    setInputSource(undefined);
+    setSelectedDuration(undefined);
+    setSelectedLabel(undefined);
+    setPendingUpload(undefined);
+  };
+
+  const selectFile = (value: PickedAudio, source: InputSource, duration?: number, label?: string) => {
     setError(undefined);
     setPendingUpload(undefined);
     setProviderDataApproved(false);
     if (value.size === 0) {
-      setFile(undefined);
+      clearFile();
       setFileError('No audio was captured. Try recording again.');
       return;
     }
     if (value.size !== undefined && value.size > MAX_BYTES) {
-      setFile(undefined);
+      clearFile();
       setFileError(`This audio is ${formatBytes(value.size)}. Use a file smaller than 500 MiB.`);
       return;
     }
     if (value.size !== undefined && value.size > quotaRemaining) {
-      setFile(undefined);
+      clearFile();
       setFileError(`This demo has ${formatBytes(quotaRemaining)} of storage left. Use a smaller file.`);
       return;
     }
     setFileError(undefined);
-    setRecordedDuration(duration);
+    setInputSource(source);
+    setSelectedDuration(duration);
+    setSelectedLabel(label);
     setFile(value);
   };
 
   const browse = async () => {
     try {
       const value = await pickAudio();
-      if (value) selectFile(value);
+      if (value) selectFile(value, 'upload');
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error('The file picker could not open'));
+    }
+  };
+
+  const selectSample = async (sample: (typeof demoAudioSamples)[number]) => {
+    if (sampleLoading || isBusy) return;
+    setSampleLoading(sample.id);
+    setError(undefined);
+    try {
+      const value = await loadDemoAudioSample(sample);
+      selectFile(value, 'sample', sample.durationMs, sample.title);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught : new Error('The demo audio could not be loaded'));
+    } finally {
+      setSampleLoading(undefined);
     }
   };
 
@@ -97,8 +128,7 @@ export default function UploadScreen() {
     setRecordingBusy(true);
     setError(undefined);
     setFileError(undefined);
-    setFile(undefined);
-    setPendingUpload(undefined);
+    clearFile();
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) throw new Error('Microphone access is needed to record a demo clip.');
@@ -121,7 +151,7 @@ export default function UploadScreen() {
       await recorder.stop();
       await setAudioModeAsync({ allowsRecording: false });
       if (!recorder.uri) throw new Error('The recording finished without an audio file.');
-      selectFile(await fromRecordedUri(recorder.uri), duration);
+      selectFile(await fromRecordedUri(recorder.uri), 'recording', duration);
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error('Recording could not be saved'));
     } finally {
@@ -179,7 +209,7 @@ export default function UploadScreen() {
     <AppShell>
       <View style={styles.intro}>
         <Text style={styles.eyebrow}>START A RUN</Text>
-        <PageTitle title="Add a recording" subtitle="Record a short clip or choose an audio file. The backend publishes each stage as it completes." />
+        <PageTitle title="Add a recording" subtitle="Upload audio, record a new clip, or choose a synthetic example. The backend publishes each stage as it completes." />
       </View>
 
       <View style={styles.stepRail}>
@@ -197,10 +227,10 @@ export default function UploadScreen() {
 
       <Card style={styles.inputCard}>
         {!file ? (
-          <View style={[styles.sourceGrid, width < 760 && styles.sourceGridNarrow]}>
+          <View style={[styles.sourceGrid, width < 1060 && styles.sourceGridNarrow]}>
             <View style={styles.sourceColumn}>
               <Text style={styles.sourceLabel}>UPLOAD</Text>
-              <DropZone onPick={(value) => selectFile(value)} pick={browse} />
+              <DropZone onPick={(value) => selectFile(value, 'upload')} pick={browse} />
             </View>
             <View style={styles.choiceDivider}><Text style={styles.choiceDividerText}>OR</Text></View>
             <View style={[styles.sourceColumn, styles.recorderCard, recorderState.isRecording && styles.recorderCardActive]}>
@@ -224,25 +254,69 @@ export default function UploadScreen() {
                 {recorderState.isRecording ? 'Stop recording' : 'Start recording'}
               </Button>
             </View>
+            <View style={styles.choiceDivider}><Text style={styles.choiceDividerText}>OR</Text></View>
+            <View style={styles.sourceColumn}>
+              <Text style={styles.sourceLabel}>CHOOSE AN EXAMPLE</Text>
+              <View style={styles.sampleCard} accessibilityRole="list">
+                <View style={styles.sampleIntro}>
+                  <View style={styles.sampleIcon}><MaterialCommunityIcons name="flask-outline" size={22} color={colors.blue} /></View>
+                  <View style={styles.sampleIntroCopy}>
+                    <Text style={styles.sampleTitle}>Synthetic recordings</Text>
+                    <Text style={styles.sampleBody}>Pick a ready-made scenario to run through the pipeline.</Text>
+                  </View>
+                </View>
+                <View style={styles.sampleList}>
+                  {demoAudioSamples.map((sample) => (
+                    <Pressable
+                      key={sample.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Choose ${sample.title}, ${formatDuration(sample.durationMs)}`}
+                      disabled={Boolean(sampleLoading)}
+                      onPress={() => void selectSample(sample)}
+                      style={({ pressed }) => [styles.sampleOption, pressed && styles.sampleOptionPressed]}
+                    >
+                      <View style={styles.sampleOptionCopy}>
+                        <Text style={styles.sampleOptionTitle}>{sample.title}</Text>
+                        <Text numberOfLines={2} style={styles.sampleOptionBody}>{sample.description}</Text>
+                        <Text style={styles.sampleMeta}>{formatDuration(sample.durationMs)} · {formatBytes(sample.size)}</Text>
+                      </View>
+                      {sampleLoading === sample.id
+                        ? <ActivityIndicator size="small" color={colors.coral} />
+                        : <MaterialCommunityIcons name="chevron-right" size={20} color={colors.inkFaint} />}
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            </View>
           </View>
         ) : (
-          <View style={styles.selectedFile}>
-            <View style={styles.fileIcon}><MaterialCommunityIcons name={recordedDuration ? 'microphone' : 'music-note'} size={27} color={colors.coralDark} /></View>
-            <View style={styles.fileCopy}>
-              <Text style={styles.readyLabel}>READY TO PROCESS</Text>
-              <Text numberOfLines={2} style={styles.fileName}>{recordedDuration ? 'New microphone recording' : file.name}</Text>
-              <Text style={styles.fileMeta}>
-                {[recordedDuration ? formatDuration(recordedDuration) : undefined, file.size === undefined ? undefined : formatBytes(file.size), file.mimeType].filter(Boolean).join(' · ')}
-              </Text>
+          <View style={styles.selectedArea}>
+            <View style={styles.selectedFile}>
+              <View style={styles.fileIcon}>
+                <MaterialCommunityIcons
+                  name={inputSource === 'recording' ? 'microphone' : inputSource === 'sample' ? 'flask-outline' : 'music-note'}
+                  size={27}
+                  color={colors.coralDark}
+                />
+              </View>
+              <View style={styles.fileCopy}>
+                <Text style={styles.readyLabel}>READY TO PROCESS</Text>
+                <Text numberOfLines={2} style={styles.fileName}>{inputSource === 'recording' ? 'New microphone recording' : selectedLabel ?? file.name}</Text>
+                <Text style={styles.fileMeta}>
+                  {[selectedDuration ? formatDuration(selectedDuration) : undefined, file.size === undefined ? undefined : formatBytes(file.size), file.mimeType].filter(Boolean).join(' · ')}
+                </Text>
+              </View>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={inputSource === 'recording' ? 'microphone-outline' : undefined}
+                disabled={isBusy}
+                onPress={clearFile}
+              >
+                {inputSource === 'recording' ? 'Re-record' : 'Replace'}
+              </Button>
             </View>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={isBusy}
-              onPress={() => { setFile(undefined); setRecordedDuration(undefined); setPendingUpload(undefined); }}
-            >
-              Replace
-            </Button>
+            {inputSource === 'recording' ? <LocalAudioPlayer uri={file.uri} /> : null}
           </View>
         )}
 
@@ -325,6 +399,20 @@ const styles = StyleSheet.create({
   recordBody: { maxWidth: 280, color: colors.inkMuted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   levels: { height: 34, flexDirection: 'row', alignItems: 'center', gap: 4 },
   levelBar: { width: 4, borderRadius: 2, backgroundColor: colors.coral },
+  sampleCard: { minHeight: 245, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, backgroundColor: colors.canvas, gap: spacing.md },
+  sampleIntro: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.xs },
+  sampleIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.blueSoft },
+  sampleIntroCopy: { flex: 1, minWidth: 0, gap: 2 },
+  sampleTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 13 },
+  sampleBody: { color: colors.inkMuted, fontSize: 9, lineHeight: 13 },
+  sampleList: { gap: spacing.sm },
+  sampleOption: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface },
+  sampleOptionPressed: { borderColor: colors.coral, backgroundColor: colors.coralSoft },
+  sampleOptionCopy: { flex: 1, minWidth: 0, gap: 2 },
+  sampleOptionTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 10 },
+  sampleOptionBody: { color: colors.inkMuted, fontSize: 8, lineHeight: 11 },
+  sampleMeta: { color: colors.blue, fontFamily: font.mono, fontSize: 7 },
+  selectedArea: { gap: spacing.md },
   selectedFile: { minHeight: 124, borderWidth: 1, borderColor: colors.green, borderRadius: radius.lg, backgroundColor: colors.greenSoft, padding: spacing.xl, flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
   fileIcon: { width: 54, height: 54, borderRadius: 18, backgroundColor: colors.coralSoft, alignItems: 'center', justifyContent: 'center' },
   fileCopy: { flex: 1, minWidth: 0, gap: 4 },

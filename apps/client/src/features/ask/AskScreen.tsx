@@ -18,6 +18,7 @@ import {
 } from '@/components/ui';
 import { useResource } from '@/hooks/useResource';
 import { api, unwrapItems } from '@/lib/api';
+import { recordingEvidenceHref } from '@/lib/evidence';
 import { canUseDeepAsk } from '@/features/capabilities/capabilities';
 import { ProviderPolicyNotice } from '@/features/capabilities/ProviderPolicyNotice';
 import { useSession } from '@/providers/SessionProvider';
@@ -153,9 +154,9 @@ export default function AskScreen() {
                       <View style={styles.citations}>
                         {message.citations.map((citation) => (
                           <CitationChip
-                            key={`${citation.segment_id}-${citation.start_ms}`}
+                            key={`${citation.segment_id}-${citation.start_ms}-${citation.end_ms}`}
                             citation={citation}
-                            onPress={() => router.push(`/recordings/${citation.recording_id}?seek=${citation.start_ms}`)}
+                            onPress={() => router.push(recordingEvidenceHref(citation) as never)}
                           />
                         ))}
                       </View>

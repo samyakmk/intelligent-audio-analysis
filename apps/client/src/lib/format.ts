@@ -61,7 +61,7 @@ export function stateLabel(state: RecordingState): string {
 
 export function citationLabel(citation: Citation): string {
   const source = citation.recording_title ? `${citation.recording_title} · ` : '';
-  return `${source}${formatDuration(citation.start_ms)}`;
+  return `${source}${formatDuration(citation.start_ms)}–${formatDuration(citation.end_ms)}`;
 }
 
 export function isActiveState(state: RecordingState): boolean {

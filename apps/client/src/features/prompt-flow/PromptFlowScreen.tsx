@@ -1,201 +1,236 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
+import { type ComponentProps, type ReactNode } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { Button, Card, PageTitle } from '@/components/ui';
 import { colors, font, radius, shadowNone, spacing } from '@/theme';
 
-const stages = [
-  {
-    number: '01',
-    title: 'Gate the transcript',
-    body: 'Validate the transcript and split it into topic-sized windows before any model call.',
-    route: 'Code only',
-    tone: 'free' as const,
-    icon: 'shield-check-outline' as const,
-  },
-  {
-    number: '02',
-    title: 'Extract candidates',
-    body: 'A small structured prompt extracts facts, decisions, actions, and exact evidence from each window.',
-    route: 'Lower-cost model',
-    tone: 'cheap' as const,
-    icon: 'filter-variant' as const,
-  },
-  {
-    number: '03',
-    title: 'Normalize + merge',
-    body: 'Code resolves dates and owners, deduplicates candidates, and flags contradictions.',
-    route: 'Code only',
-    tone: 'free' as const,
-    icon: 'source-merge' as const,
-  },
-  {
-    number: '04',
-    title: 'Synthesize compactly',
-    body: 'A small prompt writes the title and summary from merged candidates—not the transcript.',
-    route: 'Lower-cost model',
-    tone: 'cheap' as const,
-    icon: 'text-box-edit-outline' as const,
-  },
-  {
-    number: '05',
-    title: 'Validate evidence',
-    body: 'Schema and citation checks block unsupported output before publication.',
-    route: 'Code only',
-    tone: 'free' as const,
-    icon: 'check-decagram-outline' as const,
-  },
-  {
-    number: '06',
-    title: 'Repair only failures',
-    body: 'Retry only the failed unit. The strong model sees a small evidence slice, not the full transcript.',
-    route: 'Strong model if needed',
-    tone: 'strong' as const,
-    icon: 'arrow-up-bold-circle-outline' as const,
-  },
-];
-
-const prompts = [
-  {
-    label: 'SUB-PROMPT A',
-    title: 'Window extraction',
-    input: 'One topic window + timestamps',
-    output: 'Typed candidates + exact citations',
-  },
-  {
-    label: 'SUB-PROMPT B',
-    title: 'Compact synthesis',
-    input: 'Merged candidate bundle',
-    output: 'Title + cited summary',
-  },
-  {
-    label: 'SUB-PROMPT C',
-    title: 'Targeted repair',
-    input: 'Failed unit + nearby evidence',
-    output: 'Valid repair or unresolved state',
-  },
-];
+type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
+type NodeTone = 'neutral' | 'strong' | 'cheap' | 'code' | 'output';
 
 export default function PromptFlowScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const narrow = width < 1080;
+  const stacked = width < 1040;
 
   return (
     <AppShell>
       <View style={styles.intro}>
-        <Text style={styles.eyebrow}>THE CORE IDEA</Text>
+        <Text style={styles.eyebrow}>ARCHITECTURE COMPARISON</Text>
         <PageTitle
-          title="Use expensive reasoning only when needed"
-          subtitle="Run small, bounded prompts first. Deterministic checks isolate the few outputs that need a stronger model."
-          action={<Button icon="play" onPress={() => router.push('/demo')}>Try it</Button>}
+          title="Three ways to turn audio into useful output"
+          subtitle="Compare what each approach sends to a model, how much work it repeats, and where stronger reasoning is actually used."
+          action={<Button icon="play" onPress={() => router.push('/')}>Try it</Button>}
         />
       </View>
 
-      <Card style={styles.principleCard}>
-        <View style={styles.principleMark}><MaterialCommunityIcons name="transit-connection-variant" size={27} color={colors.white} /></View>
-        <View style={styles.principleCopy}>
-          <Text style={styles.principleKicker}>ONE TRANSCRIPT IN, GROUNDED OUTPUT OUT</Text>
-          <Text style={styles.principleText}>Each downstream prompt sees only the context it needs, and every claim links back to evidence.</Text>
+      <View style={[styles.comparisonGrid, stacked && styles.comparisonGridStacked]}>
+        <ApproachCard
+          label="NAIVE APPROACH"
+          title="One massive call"
+          subtitle="Ask one strong model to understand everything and produce every artifact at once."
+          badge="Highest model load"
+          badgeTone="strong"
+          cost={100}
+          costLevel="High"
+          costLabel="Full transcript processed once"
+          tradeoffs={['Simple to prototype', 'Hard to validate or retry', 'One failure reruns everything']}
+        >
+          <PipelineNode icon="file-document-outline" title="Full transcript" detail="Every word + all instructions" tone="neutral" />
+          <Connector />
+          <PipelineNode icon="brain" title="One massive LLM call" detail="Strong model reasons, extracts, writes, and formats" tone="strong" featured />
+          <Connector />
+          <OutputCluster />
+        </ApproachCard>
+
+        <ApproachCard
+          label="MIDDLE APPROACH"
+          title="Split by output"
+          subtitle="Use focused prompts, but send the full transcript to each model job."
+          badge="Less coupled"
+          badgeTone="cheap"
+          cost={72}
+          costLevel="Medium–high"
+          costLabel="Full transcript processed repeatedly"
+          tradeoffs={['Easier prompts to tune', 'Failures retry independently', 'Input tokens are duplicated']}
+        >
+          <PipelineNode icon="file-document-outline" title="Full transcript" detail="Shared source for every prompt" tone="neutral" />
+          <Connector />
+          <View style={styles.parallelBox}>
+            <Text style={styles.parallelLabel}>SPECIALIZED MODEL CALLS</Text>
+            <View style={styles.parallelGrid}>
+              {[
+                ['text-box-outline', 'Summary'],
+                ['checkbox-marked-circle-outline', 'Actions'],
+                ['source-branch', 'Decisions'],
+                ['tag-multiple-outline', 'Topics'],
+              ].map(([icon, label]) => (
+                <View key={label} style={styles.parallelJob}>
+                  <MaterialCommunityIcons name={icon as IconName} size={17} color={colors.blue} />
+                  <Text style={styles.parallelJobText}>{label}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.repeatNote}>The full transcript enters all four calls</Text>
+          </View>
+          <Connector />
+          <PipelineNode icon="view-dashboard-outline" title="Combined output" detail="Independent results assembled at the end" tone="output" />
+        </ApproachCard>
+
+        <ApproachCard
+          label="OUR COST-SAVING APPROACH"
+          title="Route only what is needed"
+          subtitle="Shrink context early, validate with code, and reserve strong reasoning for isolated failures."
+          badge="Lowest model load"
+          badgeTone="code"
+          cost={26}
+          costLevel="Low"
+          costLabel="Small windows + compact evidence"
+          tradeoffs={['Context is bounded', 'Evidence is checked before publish', 'Only failed units escalate']}
+          emphasized
+        >
+          <PipelineNode icon="file-document-outline" title="Transcript" detail="Authoritative source with timestamps" tone="neutral" />
+          <Connector />
+          <PipelineNode icon="code-braces" title="Gate + split in code" detail="Reject bad input and create topic-sized windows" tone="code" />
+          <Connector />
+          <PipelineNode icon="filter-variant" title="Cheap extraction" detail="Typed candidates + exact evidence only" tone="cheap" />
+          <Connector />
+          <PipelineNode icon="source-merge" title="Merge + validate in code" detail="Resolve, deduplicate, and flag contradictions" tone="code" />
+          <Connector />
+          <View style={styles.routedFinish}>
+            <PipelineNode icon="text-box-check-outline" title="Compact synthesis" detail="Write from merged facts—not the transcript" tone="cheap" />
+            <View style={styles.repairBranch}>
+              <MaterialCommunityIcons name="arrow-up-right" size={16} color={colors.coralDark} />
+              <Text style={styles.repairText}>Strong repair sees only the failed unit</Text>
+            </View>
+          </View>
+        </ApproachCard>
+      </View>
+
+      <Card style={styles.takeawayCard}>
+        <View style={styles.takeawayIcon}><MaterialCommunityIcons name="lightning-bolt-outline" size={24} color={colors.white} /></View>
+        <View style={styles.takeawayCopy}>
+          <Text style={styles.takeawayKicker}>THE KEY DIFFERENCE</Text>
+          <Text style={styles.takeawayTitle}>Sophistication comes from routing and verification—not from making the first prompt bigger.</Text>
+          <Text style={styles.takeawayBody}>The optimized pipeline pays for broad context once, keeps deterministic work in code, and buys stronger reasoning only for the small fraction of output that fails validation.</Text>
         </View>
       </Card>
-
-      <View style={styles.legend}>
-        <LegendDot color={colors.green} label="Code only" />
-        <LegendDot color={colors.blue} label="Lower-cost model" />
-        <LegendDot color={colors.coral} label="Strong model if needed" />
-      </View>
-
-      <View style={[styles.flow, narrow && styles.flowNarrow]}>
-        {stages.map((stage, index) => (
-          <View key={stage.number} style={[styles.flowUnit, narrow && styles.flowUnitNarrow]}>
-            <Card style={[styles.stageCard, stage.tone === 'strong' && styles.stageCardStrong]}>
-              <View style={styles.stageTop}>
-                <Text style={styles.stageNumber}>{stage.number}</Text>
-                <View style={[
-                  styles.stageIcon,
-                  stage.tone === 'free' ? styles.stageIconFree : stage.tone === 'cheap' ? styles.stageIconCheap : styles.stageIconStrong,
-                ]}>
-                  <MaterialCommunityIcons
-                    name={stage.icon}
-                    size={20}
-                    color={stage.tone === 'free' ? colors.green : stage.tone === 'cheap' ? colors.blue : colors.coralDark}
-                  />
-                </View>
-              </View>
-              <Text style={styles.stageTitle}>{stage.title}</Text>
-              <Text style={styles.stageBody}>{stage.body}</Text>
-              <View style={[
-                styles.routeBadge,
-                stage.tone === 'free' ? styles.routeBadgeFree : stage.tone === 'cheap' ? styles.routeBadgeCheap : styles.routeBadgeStrong,
-              ]}>
-                <Text style={[
-                  styles.routeText,
-                  stage.tone === 'free' ? styles.routeTextFree : stage.tone === 'cheap' ? styles.routeTextCheap : styles.routeTextStrong,
-                ]}>{stage.route}</Text>
-              </View>
-            </Card>
-            {index < stages.length - 1 ? (
-              <View style={[styles.connector, narrow && styles.connectorNarrow]}>
-                <MaterialCommunityIcons name={narrow ? 'arrow-down' : 'arrow-right'} size={18} color={colors.borderStrong} />
-              </View>
-            ) : null}
-          </View>
-        ))}
-      </View>
-
-      <View style={[styles.detailGrid, narrow && styles.detailGridNarrow]}>
-        <Card style={styles.promptCard}>
-          <Text style={styles.cardEyebrow}>THE THREE MODEL JOBS</Text>
-          <View style={styles.promptList}>
-            {prompts.map((prompt) => (
-              <View key={prompt.label} style={styles.promptRow}>
-                <View style={styles.promptIndex}><Text style={styles.promptIndexText}>{prompt.label.slice(-1)}</Text></View>
-                <View style={styles.promptCopy}>
-                  <Text style={styles.promptLabel}>{prompt.label}</Text>
-                  <Text style={styles.promptTitle}>{prompt.title}</Text>
-                  <Text style={styles.promptIO}><Text style={styles.promptIOStrong}>In:</Text> {prompt.input}</Text>
-                  <Text style={styles.promptIO}><Text style={styles.promptIOStrong}>Out:</Text> {prompt.output}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </Card>
-
-        <Card style={styles.savingsCard}>
-          <Text style={styles.cardEyebrow}>WHY THE COST DROPS</Text>
-          <View style={styles.comparisonBlock}>
-            <Text style={styles.comparisonLabel}>MONOLITHIC BASELINE</Text>
-            <Text style={styles.formula}>full transcript × several strong prompts</Text>
-          </View>
-          <View style={styles.vsLine}><View style={styles.vsRule} /><Text style={styles.vsText}>BECOMES</Text><View style={styles.vsRule} /></View>
-          <View style={[styles.comparisonBlock, styles.comparisonOptimized]}>
-            <Text style={[styles.comparisonLabel, styles.comparisonLabelOptimized]}>OPTIMIZED ROUTE</Text>
-            <Text style={styles.formula}>lower-cost window extraction + compact synthesis</Text>
-            <Text style={styles.formulaAccent}>+ escalation rate × targeted strong repair</Text>
-          </View>
-          <View style={styles.savingRules}>
-            <SavingRule icon="cached" text="Reuse transcripts and extracted candidates" />
-            <SavingRule icon="code-braces" text="Keep deterministic work out of LLMs" />
-            <SavingRule icon="target" text="Use the strong model for failed units only" />
-          </View>
-        </Card>
-      </View>
     </AppShell>
   );
 }
 
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: color }]} /><Text style={styles.legendText}>{label}</Text></View>;
+function ApproachCard({
+  label,
+  title,
+  subtitle,
+  badge,
+  badgeTone,
+  cost,
+  costLevel,
+  costLabel,
+  tradeoffs,
+  emphasized = false,
+  children,
+}: {
+  label: string;
+  title: string;
+  subtitle: string;
+  badge: string;
+  badgeTone: 'strong' | 'cheap' | 'code';
+  cost: number;
+  costLevel: string;
+  costLabel: string;
+  tradeoffs: string[];
+  emphasized?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <Card style={[styles.approachCard, emphasized && styles.approachCardEmphasized]}>
+      <View style={styles.approachHeader}>
+        <View style={styles.approachLabelRow}>
+          <Text style={[styles.approachLabel, emphasized && styles.approachLabelEmphasized]}>{label}</Text>
+          <View style={[styles.badge, styles[`badge_${badgeTone}`]]}>
+            <Text style={[styles.badgeText, styles[`badgeText_${badgeTone}`]]}>{badge}</Text>
+          </View>
+        </View>
+        <Text style={styles.approachTitle}>{title}</Text>
+        <Text style={styles.approachSubtitle}>{subtitle}</Text>
+      </View>
+
+      <View style={styles.diagram}>{children}</View>
+
+      <View style={styles.costBlock}>
+        <View style={styles.costTop}>
+          <Text style={styles.costTitle}>ILLUSTRATIVE MODEL WORK</Text>
+          <Text style={styles.costValue}>{costLevel}</Text>
+        </View>
+        <View style={styles.costTrack}>
+          <View style={[
+            styles.costFill,
+            { width: `${cost}%` },
+            badgeTone === 'strong' ? styles.costFillStrong : badgeTone === 'cheap' ? styles.costFillCheap : styles.costFillCode,
+          ]} />
+        </View>
+        <Text style={styles.costLabel}>{costLabel}</Text>
+      </View>
+
+      <View style={styles.tradeoffList}>
+        {tradeoffs.map((tradeoff, index) => (
+          <View key={tradeoff} style={styles.tradeoffRow}>
+            <MaterialCommunityIcons
+              name={index === 0 ? 'check-circle-outline' : 'circle-small'}
+              size={index === 0 ? 16 : 18}
+              color={index === 0 ? colors.green : colors.inkFaint}
+            />
+            <Text style={styles.tradeoffText}>{tradeoff}</Text>
+          </View>
+        ))}
+      </View>
+    </Card>
+  );
 }
 
-function SavingRule({ icon, text }: { icon: 'cached' | 'code-braces' | 'target'; text: string }) {
+function PipelineNode({ icon, title, detail, tone, featured = false }: { icon: IconName; title: string; detail: string; tone: NodeTone; featured?: boolean }) {
+  const foreground = tone === 'strong'
+    ? colors.coralDark
+    : tone === 'cheap'
+      ? colors.blue
+      : tone === 'code'
+        ? colors.green
+        : colors.pine;
   return (
-    <View style={styles.savingRule}>
-      <MaterialCommunityIcons name={icon} size={18} color={colors.green} />
-      <Text style={styles.savingRuleText}>{text}</Text>
+    <View style={[styles.pipelineNode, styles[`pipelineNode_${tone}`], featured && styles.pipelineNodeFeatured]}>
+      <View style={[styles.nodeIcon, styles[`nodeIcon_${tone}`]]}>
+        <MaterialCommunityIcons name={icon} size={19} color={foreground} />
+      </View>
+      <View style={styles.nodeCopy}>
+        <Text style={styles.nodeTitle}>{title}</Text>
+        <Text style={styles.nodeDetail}>{detail}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Connector() {
+  return (
+    <View style={styles.connector}>
+      <View style={styles.connectorLine} />
+      <MaterialCommunityIcons name="arrow-down" size={16} color={colors.borderStrong} />
+    </View>
+  );
+}
+
+function OutputCluster() {
+  return (
+    <View style={styles.outputCluster}>
+      <Text style={styles.outputLabel}>ALL OUTPUTS AT ONCE</Text>
+      <View style={styles.outputGrid}>
+        {['Summary', 'Actions', 'Decisions', 'Topics'].map((label) => (
+          <View key={label} style={styles.outputChip}><Text style={styles.outputChipText}>{label}</Text></View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -203,63 +238,74 @@ function SavingRule({ icon, text }: { icon: 'cached' | 'code-braces' | 'target';
 const styles = StyleSheet.create({
   intro: { gap: spacing.sm },
   eyebrow: { color: colors.coralDark, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.2 },
-  principleCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, backgroundColor: colors.pine, borderColor: colors.pine, ...shadowNone },
-  principleMark: { width: 52, height: 52, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' },
-  principleCopy: { flex: 1, gap: 5 },
-  principleKicker: { color: '#A9CCC0', fontFamily: font.medium, fontSize: 8, letterSpacing: 1 },
-  principleText: { color: colors.white, fontFamily: font.medium, fontSize: 15, lineHeight: 23 },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, flexWrap: 'wrap' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { color: colors.inkMuted, fontSize: 10 },
-  flow: { flexDirection: 'row', alignItems: 'stretch' },
-  flowNarrow: { flexDirection: 'column' },
-  flowUnit: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
-  flowUnitNarrow: { flexDirection: 'column' },
-  stageCard: { flex: 1, alignSelf: 'stretch', minHeight: 230, padding: spacing.lg, gap: spacing.sm, ...shadowNone },
-  stageCardStrong: { borderColor: colors.coral },
-  stageTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stageNumber: { color: colors.inkFaint, fontFamily: font.mono, fontSize: 9 },
-  stageIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  stageIconFree: { backgroundColor: colors.greenSoft },
-  stageIconCheap: { backgroundColor: colors.blueSoft },
-  stageIconStrong: { backgroundColor: colors.coralSoft },
-  stageTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 13, lineHeight: 18 },
-  stageBody: { flex: 1, color: colors.inkMuted, fontSize: 10, lineHeight: 16 },
-  routeBadge: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 5 },
-  routeBadgeFree: { backgroundColor: colors.greenSoft },
-  routeBadgeCheap: { backgroundColor: colors.blueSoft },
-  routeBadgeStrong: { backgroundColor: colors.coralSoft },
-  routeText: { fontFamily: font.medium, fontSize: 8 },
-  routeTextFree: { color: colors.green },
-  routeTextCheap: { color: colors.blue },
-  routeTextStrong: { color: colors.coralDark },
-  connector: { width: 22, alignItems: 'center', justifyContent: 'center' },
-  connectorNarrow: { width: '100%', height: 28 },
-  detailGrid: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xl },
-  detailGridNarrow: { flexDirection: 'column' },
-  promptCard: { flex: 1, gap: spacing.lg, ...shadowNone },
-  savingsCard: { flex: 1, gap: spacing.lg, backgroundColor: colors.surface, ...shadowNone },
-  cardEyebrow: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.1 },
-  promptList: { gap: spacing.lg },
-  promptRow: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
-  promptIndex: { width: 32, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.blueSoft },
-  promptIndexText: { color: colors.blue, fontFamily: font.medium, fontSize: 11 },
-  promptCopy: { flex: 1, gap: 3 },
-  promptLabel: { color: colors.blue, fontFamily: font.medium, fontSize: 7, letterSpacing: 0.8 },
-  promptTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 13 },
-  promptIO: { color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
-  promptIOStrong: { color: colors.ink, fontFamily: font.medium },
-  comparisonBlock: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
-  comparisonOptimized: { backgroundColor: colors.greenSoft },
-  comparisonLabel: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 8, letterSpacing: 0.8 },
-  comparisonLabelOptimized: { color: colors.green },
-  formula: { color: colors.ink, fontFamily: font.mono, fontSize: 12, lineHeight: 18 },
-  formulaAccent: { color: colors.green, fontFamily: font.mono, fontSize: 11, lineHeight: 17 },
-  vsLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  vsRule: { flex: 1, height: 1, backgroundColor: colors.border },
-  vsText: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 8, letterSpacing: 0.8 },
-  savingRules: { gap: spacing.md },
-  savingRule: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  savingRuleText: { flex: 1, color: colors.inkMuted, fontSize: 11 },
+  comparisonGrid: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.lg },
+  comparisonGridStacked: { flexDirection: 'column' },
+  approachCard: { flex: 1, minWidth: 0, padding: spacing.lg, gap: spacing.lg, ...shadowNone },
+  approachCardEmphasized: { borderWidth: 2, borderColor: colors.green, backgroundColor: '#FBFEFC' },
+  approachHeader: { minHeight: 130, gap: spacing.sm },
+  approachLabelRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' },
+  approachLabel: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 8, letterSpacing: 0.9 },
+  approachLabelEmphasized: { color: colors.green },
+  approachTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 21, letterSpacing: -0.35 },
+  approachSubtitle: { color: colors.inkMuted, fontSize: 11, lineHeight: 17 },
+  badge: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: radius.pill },
+  badge_strong: { backgroundColor: colors.coralSoft },
+  badge_cheap: { backgroundColor: colors.blueSoft },
+  badge_code: { backgroundColor: colors.greenSoft },
+  badgeText: { fontFamily: font.medium, fontSize: 7 },
+  badgeText_strong: { color: colors.coralDark },
+  badgeText_cheap: { color: colors.blue },
+  badgeText_code: { color: colors.green },
+  diagram: { flex: 1, minHeight: 420, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.canvas, justifyContent: 'flex-start' },
+  pipelineNode: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderRadius: radius.md },
+  pipelineNode_neutral: { borderColor: colors.borderStrong, backgroundColor: colors.surface },
+  pipelineNode_strong: { borderColor: colors.coral, backgroundColor: colors.coralSoft },
+  pipelineNode_cheap: { borderColor: '#AFCBDA', backgroundColor: colors.blueSoft },
+  pipelineNode_code: { borderColor: '#AED0C3', backgroundColor: colors.greenSoft },
+  pipelineNode_output: { borderColor: colors.pine, backgroundColor: colors.pineSoft },
+  pipelineNodeFeatured: { minHeight: 92 },
+  nodeIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  nodeIcon_neutral: { backgroundColor: colors.surfaceMuted },
+  nodeIcon_strong: { backgroundColor: '#F9CDC4' },
+  nodeIcon_cheap: { backgroundColor: '#CFE2EC' },
+  nodeIcon_code: { backgroundColor: '#CBE4D9' },
+  nodeIcon_output: { backgroundColor: '#C9DFD6' },
+  nodeCopy: { flex: 1, minWidth: 0, gap: 3 },
+  nodeTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 11 },
+  nodeDetail: { color: colors.inkMuted, fontSize: 8, lineHeight: 12 },
+  connector: { height: 30, alignItems: 'center', justifyContent: 'center' },
+  connectorLine: { position: 'absolute', top: 0, bottom: 8, width: 1, backgroundColor: colors.borderStrong },
+  outputCluster: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.pine, borderRadius: radius.md, backgroundColor: colors.pineSoft },
+  outputLabel: { color: colors.pine, fontFamily: font.medium, fontSize: 7, letterSpacing: 0.8, textAlign: 'center' },
+  outputGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  outputChip: { width: '48%', paddingVertical: 7, paddingHorizontal: spacing.xs, borderRadius: radius.sm, backgroundColor: colors.surface },
+  outputChipText: { color: colors.ink, fontFamily: font.medium, fontSize: 8, textAlign: 'center' },
+  parallelBox: { gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: '#AFCBDA', borderRadius: radius.md, backgroundColor: colors.blueSoft },
+  parallelLabel: { color: colors.blue, fontFamily: font.medium, fontSize: 7, letterSpacing: 0.8, textAlign: 'center' },
+  parallelGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  parallelJob: { width: '48%', minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4, padding: spacing.xs, borderRadius: radius.sm, backgroundColor: colors.surface },
+  parallelJobText: { color: colors.ink, fontFamily: font.medium, fontSize: 8 },
+  repeatNote: { color: colors.blue, fontSize: 8, lineHeight: 12, textAlign: 'center' },
+  routedFinish: { gap: spacing.sm },
+  repairBranch: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, padding: spacing.sm, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.coral, borderRadius: radius.sm, backgroundColor: colors.coralSoft },
+  repairText: { color: colors.coralDark, fontFamily: font.medium, fontSize: 8 },
+  costBlock: { gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  costTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  costTitle: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 7, letterSpacing: 0.8 },
+  costValue: { color: colors.ink, fontFamily: font.mono, fontSize: 10 },
+  costTrack: { height: 7, borderRadius: 4, backgroundColor: colors.surfaceMuted, overflow: 'hidden' },
+  costFill: { height: 7, borderRadius: 4 },
+  costFillStrong: { backgroundColor: colors.coral },
+  costFillCheap: { backgroundColor: colors.blue },
+  costFillCode: { backgroundColor: colors.green },
+  costLabel: { color: colors.inkMuted, fontSize: 8 },
+  tradeoffList: { gap: spacing.xs },
+  tradeoffRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  tradeoffText: { flex: 1, color: colors.inkMuted, fontSize: 9 },
+  takeawayCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, backgroundColor: colors.pine, borderColor: colors.pine, ...shadowNone },
+  takeawayIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  takeawayCopy: { flex: 1, gap: 4 },
+  takeawayKicker: { color: '#A9CCC0', fontFamily: font.medium, fontSize: 8, letterSpacing: 0.9 },
+  takeawayTitle: { color: colors.white, fontFamily: font.medium, fontSize: 14, lineHeight: 20 },
+  takeawayBody: { color: '#C8DDD6', fontSize: 10, lineHeight: 15 },
 });

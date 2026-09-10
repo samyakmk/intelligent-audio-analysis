@@ -23,6 +23,6 @@ describe('presentation formatting', () => {
         start_ms: 65_000,
         end_ms: 70_000,
       }),
-    ).toBe('Research sync · 1:05');
+    ).toBe('Research sync · 1:05–1:10');
   });
 });

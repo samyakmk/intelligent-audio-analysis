@@ -21,11 +21,12 @@ import {
 } from '@/components/ui';
 import { useResource } from '@/hooks/useResource';
 import { api, unwrapItems } from '@/lib/api';
+import { recordingEvidenceHref } from '@/lib/evidence';
 import { downloadText, downloadUrl } from '@/platform/download';
 import { formatDate } from '@/lib/format';
 import { useSession } from '@/providers/SessionProvider';
 import { colors, font, radius, shadowNone, spacing } from '@/theme';
-import type { ActionTask, ExportRequest, Recap, Topic } from '@/types/api';
+import type { ActionTask, Citation, ExportRequest, Recap, Topic } from '@/types/api';
 
 type Tab = 'tasks' | 'insights';
 type StatusFilter = 'all' | ActionTask['status'];
@@ -118,7 +119,10 @@ export default function TasksScreen() {
                   narrow={width < 760}
                   busy={busy === task.id}
                   onStatus={(status) => mutate(task.id, () => api.updateTask(task.id, status, task.version), `Task marked ${status.replace('_', ' ')}.`)}
-                  onSource={() => router.push(`/recordings/${task.recording_id}?seek=${task.evidence[0]?.start_ms ?? 0}`)}
+                  onSource={(citation) => {
+                    const source = citation ?? task.evidence[0];
+                    if (source) router.push(recordingEvidenceHref(source) as never);
+                  }}
                 />
               ))}
             </View>
@@ -145,7 +149,7 @@ export default function TasksScreen() {
                   <Text style={styles.recapSummary}>{recap.summary}</Text>
                   <View style={styles.citations}>
                     {recap.citations.slice(0, 8).map((citation) => (
-                      <CitationChip key={`${citation.segment_id}-${citation.start_ms}`} citation={citation} onPress={() => router.push(`/recordings/${citation.recording_id}?seek=${citation.start_ms}`)} />
+                      <CitationChip key={`${citation.segment_id}-${citation.start_ms}-${citation.end_ms}`} citation={citation} onPress={() => router.push(recordingEvidenceHref(citation) as never)} />
                     ))}
                   </View>
                 </Card>
@@ -153,7 +157,7 @@ export default function TasksScreen() {
                   <Text style={styles.sectionTitle}>Topic map</Text>
                   <TopicMap topics={recap.topics} onSource={(topic) => {
                     const citation = topic.evidence[0];
-                    if (citation) router.push(`/recordings/${citation.recording_id}?seek=${citation.start_ms}`);
+                    if (citation) router.push(recordingEvidenceHref(citation) as never);
                   }} />
                 </Card>
               </>
@@ -181,10 +185,10 @@ export default function TasksScreen() {
   );
 }
 
-function TaskRow({ task, narrow, busy, onStatus, onSource }: { task: ActionTask; narrow: boolean; busy: boolean; onStatus(status: ActionTask['status']): void; onSource(): void }) {
+function TaskRow({ task, narrow, busy, onStatus, onSource }: { task: ActionTask; narrow: boolean; busy: boolean; onStatus(status: ActionTask['status']): void; onSource(citation?: Citation): void }) {
   return (
     <Card style={[styles.taskRow, narrow && styles.taskRowNarrow]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Open source recording" onPress={onSource} style={styles.taskSourceIcon}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open source recording" onPress={() => onSource()} style={styles.taskSourceIcon}>
         <MaterialCommunityIcons name="play-circle-outline" size={24} color={colors.coralDark} />
       </Pressable>
       <View style={styles.taskCopy}>
@@ -197,7 +201,7 @@ function TaskRow({ task, narrow, busy, onStatus, onSource }: { task: ActionTask;
           <Text style={[styles.due, !task.due_at && styles.unresolved]}>{task.due_at ? formatDate(task.due_at) : task.due_text ?? 'Date unresolved'}</Text>
         </View>
         {task.ambiguities?.length ? <Text style={styles.ambiguity}>{task.ambiguities.join(' · ')}</Text> : null}
-        <View style={styles.citations}>{task.evidence.map((citation) => <CitationChip key={`${citation.segment_id}-${citation.start_ms}`} citation={citation} onPress={onSource} />)}</View>
+        <View style={styles.citations}>{task.evidence.map((citation) => <CitationChip key={`${citation.segment_id}-${citation.start_ms}-${citation.end_ms}`} citation={citation} onPress={() => onSource(citation)} />)}</View>
       </View>
       <View style={styles.statusChoices}>
         {(['open', 'in_progress', 'done', 'dismissed'] as const).map((status) => (

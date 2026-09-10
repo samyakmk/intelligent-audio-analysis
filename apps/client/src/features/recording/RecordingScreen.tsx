@@ -6,13 +6,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppShell } from '@/components/AppShell';
 import { RecordingAudioPlayer, type RecordingAudioPlayerHandle } from '@/components/AudioPlayer';
 import { Button, Card, Chip, CitationChip, EmptyState, ErrorState, LoadingState, Notice, SectionTitle, StatusBadge } from '@/components/ui';
+import { RecordingAskPane } from '@/features/ask/RecordingAskPane';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
+import { isValidEvidenceRange, type EvidenceRange } from '@/lib/evidence';
 import { formatBytes, formatDate, formatDuration, formatMoney, isActiveState } from '@/lib/format';
 import { colors, font, shadowNone, spacing } from '@/theme';
 import type { Citation, CostSummary, EvidenceItem, Recording, RecordingIntelligence, Transcript, TranscriptSegment } from '@/types/api';
 
-type DetailTab = 'overview' | 'transcript' | 'cost';
+type DetailTab = 'overview' | 'transcript' | 'cost' | 'ask';
 
 interface RecordingBundle {
   recording: Recording;
@@ -26,21 +28,20 @@ const configuredPollMs = Number(process.env.EXPO_PUBLIC_STATUS_POLL_INTERVAL_MS 
 const statusPollMs = Math.max(1_000, Number.isFinite(configuredPollMs) ? configuredPollMs : 4_000);
 
 export default function RecordingScreen() {
-  const params = useLocalSearchParams<{ id: string; seek?: string }>();
+  const params = useLocalSearchParams<{ id: string; seek?: string; start?: string; end?: string }>();
   const router = useRouter();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const routeSeek = Array.isArray(params.seek) ? params.seek[0] : params.seek;
+  const routeStart = Array.isArray(params.start) ? params.start[0] : params.start;
+  const routeEnd = Array.isArray(params.end) ? params.end[0] : params.end;
   const playerRef = useRef<RecordingAudioPlayerHandle>(null);
   const [tab, setTab] = useState<DetailTab>('overview');
   const [actionError, setActionError] = useState<Error>();
   const [actionBusy, setActionBusy] = useState<string>();
 
-  const seekToEvidence = (ms: number) => playerRef.current?.seekToMs(ms, true);
-
-  useEffect(() => {
-    const ms = Number(routeSeek);
-    if (Number.isFinite(ms) && ms >= 0) playerRef.current?.seekToMs(ms, true);
-  }, [routeSeek]);
+  const playEvidence = (range: EvidenceRange) => {
+    if (isValidEvidenceRange(range)) playerRef.current?.playRangeMs(range.start_ms, range.end_ms);
+  };
 
   const resource = useResource<RecordingBundle>(async () => {
     if (!id) throw new Error('Recording ID is missing');
@@ -59,7 +60,19 @@ export default function RecordingScreen() {
   }, [id]);
 
   const activeState = resource.data?.recording.state;
+  const originalReady = resource.data?.recording.readiness.original_ready;
   const reload = resource.reload;
+  useEffect(() => {
+    if (!originalReady) return;
+    const range = { start_ms: Number(routeStart), end_ms: Number(routeEnd) };
+    if (isValidEvidenceRange(range)) {
+      playerRef.current?.playRangeMs(range.start_ms, range.end_ms);
+      return;
+    }
+    const ms = Number(routeSeek);
+    if (Number.isFinite(ms) && ms >= 0) playerRef.current?.seekToMs(ms, true);
+  }, [originalReady, routeEnd, routeSeek, routeStart]);
+
   useEffect(() => {
     if (!activeState || !isActiveState(activeState)) return;
     const timer = setInterval(() => void reload(), statusPollMs);
@@ -106,7 +119,7 @@ export default function RecordingScreen() {
       {actionError ? <Notice tone="error" title="Could not complete the action">{actionError.message}</Notice> : null}
 
       <View style={styles.tabs} accessibilityRole="tablist">
-        {(['overview', 'transcript', 'cost'] as DetailTab[]).map((item) => (
+        {(['overview', 'transcript', 'cost', 'ask'] as DetailTab[]).map((item) => (
           <Pressable
             key={item}
             accessibilityRole="tab"
@@ -114,14 +127,15 @@ export default function RecordingScreen() {
             onPress={() => setTab(item)}
             style={[styles.tab, tab === item && styles.tabActive]}
           >
-            <Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item === 'overview' ? 'Grounded output' : item === 'cost' ? 'Cost trace' : 'Transcript'}</Text>
+            <Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item === 'overview' ? 'Grounded output' : item === 'cost' ? 'Cost trace' : item === 'ask' ? 'Ask' : 'Transcript'}</Text>
           </Pressable>
         ))}
       </View>
 
-      {tab === 'overview' ? <OverviewPane recording={recording} intelligence={intelligence} error={intelligenceError} onSeek={seekToEvidence} /> : null}
-      {tab === 'transcript' ? <TranscriptPane recording={recording} transcript={transcript} error={transcriptError} onSeek={seekToEvidence} /> : null}
+      {tab === 'overview' ? <OverviewPane recording={recording} intelligence={intelligence} error={intelligenceError} onSeek={playEvidence} /> : null}
+      {tab === 'transcript' ? <TranscriptPane recording={recording} transcript={transcript} error={transcriptError} onSeek={playEvidence} /> : null}
       {tab === 'cost' ? <RecordingCostPane recordingId={recording.id} /> : null}
+      {tab === 'ask' ? <RecordingAskPane key={recording.id} recording={recording} onEvidence={playEvidence} /> : null}
     </AppShell>
   );
 }
@@ -170,7 +184,7 @@ function ReadinessPanel({ recording }: { recording: Recording }) {
   );
 }
 
-function OverviewPane({ recording, intelligence, error, onSeek }: { recording: Recording; intelligence?: RecordingIntelligence; error?: Error; onSeek(ms: number): void }) {
+function OverviewPane({ recording, intelligence, error, onSeek }: { recording: Recording; intelligence?: RecordingIntelligence; error?: Error; onSeek(range: EvidenceRange): void }) {
   if (!recording.readiness.intelligence_ready) {
     return <Card><EmptyState icon="lightbulb-off-outline" title="Grounded output is not ready" body="This section appears after the transcript, schema, and citation checks pass." /></Card>;
   }
@@ -197,7 +211,7 @@ function OverviewPane({ recording, intelligence, error, onSeek }: { recording: R
   );
 }
 
-function TranscriptPane({ recording, transcript, error, onSeek }: { recording: Recording; transcript?: Transcript; error?: Error; onSeek(ms: number): void }) {
+function TranscriptPane({ recording, transcript, error, onSeek }: { recording: Recording; transcript?: Transcript; error?: Error; onSeek(range: EvidenceRange): void }) {
   if (!recording.readiness.transcript_ready) return <Card><EmptyState icon="text-box-remove-outline" title="Transcript is not ready" body="Transcription must finish before downstream stages can run." /></Card>;
   if (error) return <Card><ErrorState error={error} /></Card>;
   if (!transcript) return <Card><EmptyState icon="file-question-outline" title="Transcript unavailable" body="Refresh this run to load the published transcript." /></Card>;
@@ -207,9 +221,9 @@ function TranscriptPane({ recording, transcript, error, onSeek }: { recording: R
       <View style={styles.transcriptList}>
         {transcript.segments.map((segment) => (
           <View key={segment.id} style={styles.segment}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Play at ${formatDuration(segment.start_ms)}`} onPress={() => onSeek(segment.start_ms)} style={styles.timestampButton}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Play from ${formatDuration(segment.start_ms)} to ${formatDuration(segment.end_ms)}`} onPress={() => onSeek(segment)} style={styles.timestampButton}>
               <MaterialCommunityIcons name="play" size={13} color={colors.blue} />
-              <Text style={styles.timestamp}>{formatDuration(segment.start_ms)}</Text>
+              <Text style={styles.timestamp}>{formatDuration(segment.start_ms)}–{formatDuration(segment.end_ms)}</Text>
             </Pressable>
             <View style={styles.segmentBody}>
               <Text style={styles.speakerName}>{segment.speaker_name ?? labelSpeaker(segment)}</Text>
@@ -222,7 +236,7 @@ function TranscriptPane({ recording, transcript, error, onSeek }: { recording: R
   );
 }
 
-function EvidenceList({ items, empty, onSeek, kind }: { items: EvidenceItem[]; empty: string; onSeek(ms: number): void; kind?: 'action' }) {
+function EvidenceList({ items, empty, onSeek, kind }: { items: EvidenceItem[]; empty: string; onSeek(range: EvidenceRange): void; kind?: 'action' }) {
   if (!items.length) return <Text style={styles.emptyInline}>{empty}</Text>;
   return (
     <View style={styles.evidenceList}>
@@ -248,10 +262,10 @@ function EvidenceList({ items, empty, onSeek, kind }: { items: EvidenceItem[]; e
   );
 }
 
-function CitationRow({ citations, onSeek }: { citations: Citation[]; onSeek(ms: number): void }) {
+function CitationRow({ citations, onSeek }: { citations: Citation[]; onSeek(range: EvidenceRange): void }) {
   return (
     <View style={styles.chipWrap}>
-      {citations.map((citation) => <CitationChip key={`${citation.segment_id}-${citation.start_ms}`} citation={citation} onPress={() => onSeek(citation.start_ms)} />)}
+      {citations.map((citation) => <CitationChip key={`${citation.segment_id}-${citation.start_ms}-${citation.end_ms}`} citation={citation} onPress={() => onSeek(citation)} />)}
     </View>
   );
 }
@@ -340,7 +354,7 @@ const styles = StyleSheet.create({
   emptyInline: { color: colors.inkFaint, fontSize: 13, fontStyle: 'italic', paddingVertical: spacing.lg },
   transcriptList: { gap: 0 },
   segment: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, paddingVertical: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
-  timestampButton: { width: 62, paddingTop: 2, flexDirection: 'row', alignItems: 'center', gap: 3 },
+  timestampButton: { width: 106, paddingTop: 2, flexDirection: 'row', alignItems: 'center', gap: 3 },
   timestamp: { color: colors.blue, fontFamily: font.mono, fontSize: 10 },
   segmentBody: { flex: 1, gap: spacing.sm },
   speakerName: { color: colors.coralDark, fontFamily: font.medium, fontSize: 11 },

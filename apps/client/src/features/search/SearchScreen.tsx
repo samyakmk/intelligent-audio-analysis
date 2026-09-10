@@ -19,6 +19,7 @@ import {
 } from '@/components/ui';
 import { useResource } from '@/hooks/useResource';
 import { api, unwrapItems } from '@/lib/api';
+import { recordingEvidenceHref } from '@/lib/evidence';
 import { formatDuration } from '@/lib/format';
 import { RequestGeneration } from '@/lib/requestGeneration';
 import { useSession } from '@/providers/SessionProvider';
@@ -173,8 +174,8 @@ export default function SearchScreen() {
                 <Pressable
                   key={item.id}
                   accessibilityRole="button"
-                  accessibilityLabel={`Open ${item.recording_title} at ${formatDuration(item.start_ms)}`}
-                  onPress={() => router.push(`/recordings/${item.recording_id}?seek=${item.start_ms}`)}
+                  accessibilityLabel={`Open ${item.recording_title} from ${formatDuration(item.start_ms)} to ${formatDuration(item.end_ms)}`}
+                  onPress={() => router.push(recordingEvidenceHref(item.citation) as never)}
                   style={({ pressed }) => [styles.resultCard, width < 840 && styles.resultCardNarrow, pressed && styles.resultCardActive]}
                 >
                   <View style={uiStyles.rowBetween}>

@@ -20,7 +20,7 @@ import { colors, font, spacing } from '@/theme';
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 const navigation: { href: string; label: string; icon: IconName; matches?: string[] }[] = [
-  { href: '/demo', label: 'Run demo', icon: 'microphone-outline', matches: ['/upload'] },
+  { href: '/', label: 'Run demo', icon: 'microphone-outline', matches: ['/demo', '/upload'] },
   { href: '/results', label: 'Results', icon: 'text-box-check-outline', matches: ['/recordings'] },
   { href: '/prompt-flow', label: 'Prompt flow', icon: 'transit-connection-variant' },
 ];
@@ -58,7 +58,7 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
       <View style={[styles.header, { paddingTop: Math.max(insets.top, desktop ? 16 : 10) }]}>
         <Pressable
           accessibilityRole="link"
-          accessibilityLabel="Back to introduction"
+          accessibilityLabel="Go to Run demo"
           onPress={() => router.push('/')}
           style={({ pressed }) => [styles.brandLink, pressed && styles.pressed]}
         >
