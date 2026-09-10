@@ -41,7 +41,7 @@ export default function LibraryScreen() {
         <PageTitle
           title="Inspect a run"
           subtitle="Open a run to review each published stage, its evidence, and model cost."
-          action={<Button icon="plus" onPress={() => router.push('/')}>New run</Button>}
+          action={<Button icon="plus" onPress={() => router.push('/demo')}>New run</Button>}
         />
       </View>
 
@@ -79,7 +79,7 @@ export default function LibraryScreen() {
                 icon="microphone-outline"
                 title="No runs yet"
                 body="Record a short clip or choose an audio file to start."
-                action={<Button icon="play" onPress={() => router.push('/')}>Start a run</Button>}
+                action={<Button icon="play" onPress={() => router.push('/demo')}>Start a run</Button>}
               />
             </Card>
           ) : (

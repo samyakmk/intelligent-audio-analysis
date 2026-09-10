@@ -20,7 +20,7 @@ import { colors, font, spacing } from '@/theme';
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 
 const navigation: { href: string; label: string; icon: IconName; matches?: string[] }[] = [
-  { href: '/', label: 'Run demo', icon: 'microphone-outline', matches: ['/upload'] },
+  { href: '/demo', label: 'Run demo', icon: 'microphone-outline', matches: ['/upload'] },
   { href: '/results', label: 'Results', icon: 'text-box-check-outline', matches: ['/recordings'] },
   { href: '/prompt-flow', label: 'Prompt flow', icon: 'transit-connection-variant' },
 ];
@@ -34,12 +34,12 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
   const desktop = width >= 760;
 
   if (loading) return <View style={styles.loading}><LoadingState label="Opening the demo…" /></View>;
-  if (!session) return <Redirect href="/welcome" />;
+  if (!session) return <Redirect href="/" />;
 
   const isActive = (item: (typeof navigation)[number]) => (
-    item.href === '/'
-      ? pathname === '/' || (item.matches ?? []).some((match) => pathname.startsWith(match))
-      : pathname.startsWith(item.href) || (item.matches ?? []).some((match) => pathname.startsWith(match))
+    pathname === item.href
+    || pathname.startsWith(`${item.href}/`)
+    || (item.matches ?? []).some((match) => pathname.startsWith(match))
   );
   const page = (
     <View
@@ -59,7 +59,7 @@ export function AppShell({ children, scroll = true }: { children: ReactNode; scr
         <Pressable
           accessibilityRole="link"
           accessibilityLabel="Back to introduction"
-          onPress={() => router.push('/welcome')}
+          onPress={() => router.push('/')}
           style={({ pressed }) => [styles.brandLink, pressed && styles.pressed]}
         >
           <BrandMark compact={!desktop} />

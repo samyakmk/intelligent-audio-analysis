@@ -90,7 +90,7 @@ export default function PromptFlowScreen() {
         <PageTitle
           title="Use expensive reasoning only when needed"
           subtitle="Run small, bounded prompts first. Deterministic checks isolate the few outputs that need a stronger model."
-          action={<Button icon="play" onPress={() => router.push('/')}>Try it</Button>}
+          action={<Button icon="play" onPress={() => router.push('/demo')}>Try it</Button>}
         />
       </View>
 
