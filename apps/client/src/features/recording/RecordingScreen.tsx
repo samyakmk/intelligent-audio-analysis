@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { RecordingAudioPlayer, type RecordingAudioPlayerHandle } from '@/components/AudioPlayer';
@@ -28,6 +28,8 @@ const configuredPollMs = Number(process.env.EXPO_PUBLIC_STATUS_POLL_INTERVAL_MS 
 const statusPollMs = Math.max(1_000, Number.isFinite(configuredPollMs) ? configuredPollMs : 4_000);
 
 export default function RecordingScreen() {
+  const { width } = useWindowDimensions();
+  const phone = width < 560;
   const params = useLocalSearchParams<{ id: string; seek?: string; start?: string; end?: string }>();
   const router = useRouter();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -118,16 +120,16 @@ export default function RecordingScreen() {
       {recording.readiness.original_ready ? <RecordingAudioPlayer ref={playerRef} recordingId={recording.id} /> : null}
       {actionError ? <Notice tone="error" title="Could not complete the action">{actionError.message}</Notice> : null}
 
-      <View style={styles.tabs} accessibilityRole="tablist">
+      <View style={[styles.tabs, phone && styles.tabsPhone]} accessibilityRole="tablist">
         {(['overview', 'transcript', 'cost', 'ask'] as DetailTab[]).map((item) => (
           <Pressable
             key={item}
             accessibilityRole="tab"
             accessibilityState={{ selected: tab === item }}
             onPress={() => setTab(item)}
-            style={[styles.tab, tab === item && styles.tabActive]}
+            style={[styles.tab, phone && styles.tabPhone, tab === item && styles.tabActive]}
           >
-            <Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item === 'overview' ? 'Grounded output' : item === 'cost' ? 'Cost trace' : item === 'ask' ? 'Ask' : 'Transcript'}</Text>
+            <Text numberOfLines={1} style={[styles.tabText, phone && styles.tabTextPhone, tab === item && styles.tabTextActive]}>{item === 'overview' ? phone ? 'Output' : 'Grounded output' : item === 'cost' ? phone ? 'Cost' : 'Cost trace' : item === 'ask' ? 'Ask' : 'Transcript'}</Text>
           </Pressable>
         ))}
       </View>
@@ -334,9 +336,12 @@ const styles = StyleSheet.create({
   assetStateReady: { color: colors.green },
   assetStateActive: { color: colors.blue },
   tabs: { flexDirection: 'row', columnGap: spacing.xl, borderBottomWidth: 1, borderBottomColor: colors.border },
+  tabsPhone: { columnGap: 0 },
   tab: { paddingHorizontal: 2, paddingVertical: 13, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabPhone: { flex: 1, alignItems: 'center', paddingHorizontal: spacing.xs },
   tabActive: { borderBottomColor: colors.coral },
   tabText: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 13 },
+  tabTextPhone: { fontSize: 11 },
   tabTextActive: { color: colors.ink },
   paneStack: { gap: spacing.xl },
   paneCard: { gap: spacing.xl },

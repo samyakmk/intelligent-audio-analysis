@@ -43,6 +43,7 @@ interface PendingUpload {
 export default function UploadScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
+  const phone = width < 560;
   const { session } = useSession();
   const { capabilities, loading: capabilitiesLoading } = useCapabilities();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -212,15 +213,15 @@ export default function UploadScreen() {
         <PageTitle title="Add a recording" subtitle="Upload audio, record a new clip, or choose a synthetic example. The backend publishes each stage as it completes." />
       </View>
 
-      <View style={styles.stepRail}>
+      <View style={[styles.stepRail, phone && styles.stepRailPhone]}>
         {[
           ['1', 'Add audio', true],
           ['2', 'Process audio', Boolean(file)],
           ['3', 'Inspect output', false],
         ].map(([number, label, active]) => (
-          <View key={String(number)} style={styles.stepItem}>
+          <View key={String(number)} style={[styles.stepItem, phone && styles.stepItemPhone]}>
             <View style={[styles.stepNumber, active && styles.stepNumberActive]}><Text style={[styles.stepNumberText, active && styles.stepNumberTextActive]}>{number}</Text></View>
-            <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>{label}</Text>
+            <Text numberOfLines={1} style={[styles.stepLabel, phone && styles.stepLabelPhone, active && styles.stepLabelActive]}>{label}</Text>
           </View>
         ))}
       </View>
@@ -377,12 +378,15 @@ const styles = StyleSheet.create({
   intro: { gap: spacing.sm },
   eyebrow: { color: colors.coralDark, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.2 },
   stepRail: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl, paddingVertical: spacing.sm },
+  stepRailPhone: { justifyContent: 'space-between', gap: 0 },
   stepItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  stepItemPhone: { flex: 1, flexDirection: 'column', gap: spacing.xs },
   stepNumber: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceMuted },
   stepNumberActive: { backgroundColor: colors.pine },
   stepNumberText: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 10 },
   stepNumberTextActive: { color: colors.white },
   stepLabel: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 11 },
+  stepLabelPhone: { fontSize: 9, textAlign: 'center' },
   stepLabelActive: { color: colors.ink },
   inputCard: { gap: spacing.xl },
   sourceGrid: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xl },

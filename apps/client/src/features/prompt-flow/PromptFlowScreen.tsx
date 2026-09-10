@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useRouter } from 'expo-router';
-import { type ComponentProps, type ReactNode } from 'react';
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { type ComponentProps, type ReactNode, useState } from 'react';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { AppShell } from '@/components/AppShell';
 import { Button, Card, PageTitle } from '@/components/ui';
@@ -9,11 +9,20 @@ import { colors, font, radius, shadowNone, spacing } from '@/theme';
 
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 type NodeTone = 'neutral' | 'strong' | 'cheap' | 'code' | 'output';
+type ApproachKey = 'naive' | 'middle' | 'optimized';
+
+const mobileApproaches: { key: ApproachKey; label: string; cost: string }[] = [
+  { key: 'naive', label: 'Naive', cost: 'HIGH' },
+  { key: 'middle', label: 'Middle', cost: 'MED–HIGH' },
+  { key: 'optimized', label: 'Our design', cost: 'LOW' },
+];
 
 export default function PromptFlowScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const stacked = width < 1040;
+  const phone = width < 680;
+  const [mobileApproach, setMobileApproach] = useState<ApproachKey>('optimized');
 
   return (
     <AppShell>
@@ -26,8 +35,39 @@ export default function PromptFlowScreen() {
         />
       </View>
 
-      <View style={[styles.comparisonGrid, stacked && styles.comparisonGridStacked]}>
-        <ApproachCard
+      {phone ? (
+        <View style={styles.mobilePicker}>
+          <View style={styles.mobilePickerHeader}>
+            <Text style={styles.mobilePickerKicker}>COMPARE APPROACHES</Text>
+            <Text style={styles.mobilePickerHint}>Tap each option to inspect its architecture.</Text>
+          </View>
+          <View style={styles.mobileTabs} accessibilityRole="tablist">
+            {mobileApproaches.map((approach) => {
+              const selected = mobileApproach === approach.key;
+              return (
+                <Pressable
+                  key={approach.key}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  onPress={() => setMobileApproach(approach.key)}
+                  style={({ pressed }) => [
+                    styles.mobileTab,
+                    selected && styles.mobileTabSelected,
+                    selected && approach.key === 'optimized' && styles.mobileTabOptimized,
+                    pressed && styles.mobileTabPressed,
+                  ]}
+                >
+                  <Text numberOfLines={1} style={[styles.mobileTabLabel, selected && styles.mobileTabLabelSelected]}>{approach.label}</Text>
+                  <Text style={[styles.mobileTabCost, selected && styles.mobileTabCostSelected]}>{approach.cost}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+
+      <View style={[styles.comparisonGrid, stacked && styles.comparisonGridStacked, phone && styles.comparisonGridPhone]}>
+        {!phone || mobileApproach === 'naive' ? <ApproachCard
           label="NAIVE APPROACH"
           title="One massive call"
           subtitle="Ask one strong model to understand everything and produce every artifact at once."
@@ -37,15 +77,16 @@ export default function PromptFlowScreen() {
           costLevel="High"
           costLabel="Full transcript processed once"
           tradeoffs={['Simple to prototype', 'Hard to validate or retry', 'One failure reruns everything']}
+          compact={phone}
         >
-          <PipelineNode icon="file-document-outline" title="Full transcript" detail="Every word + all instructions" tone="neutral" />
-          <Connector />
-          <PipelineNode icon="brain" title="One massive LLM call" detail="Strong model reasons, extracts, writes, and formats" tone="strong" featured />
-          <Connector />
-          <OutputCluster />
-        </ApproachCard>
+          <PipelineNode icon="file-document-outline" title="Full transcript" detail="Every word + all instructions" tone="neutral" compact={phone} />
+          <Connector compact={phone} />
+          <PipelineNode icon="brain" title="One massive LLM call" detail="Strong model reasons, extracts, writes, and formats" tone="strong" featured compact={phone} />
+          <Connector compact={phone} />
+          <OutputCluster compact={phone} />
+        </ApproachCard> : null}
 
-        <ApproachCard
+        {!phone || mobileApproach === 'middle' ? <ApproachCard
           label="MIDDLE APPROACH"
           title="Split by output"
           subtitle="Use focused prompts, but send the full transcript to each model job."
@@ -55,10 +96,11 @@ export default function PromptFlowScreen() {
           costLevel="Medium–high"
           costLabel="Full transcript processed repeatedly"
           tradeoffs={['Easier prompts to tune', 'Failures retry independently', 'Input tokens are duplicated']}
+          compact={phone}
         >
-          <PipelineNode icon="file-document-outline" title="Full transcript" detail="Shared source for every prompt" tone="neutral" />
-          <Connector />
-          <View style={styles.parallelBox}>
+          <PipelineNode icon="file-document-outline" title="Full transcript" detail="Shared source for every prompt" tone="neutral" compact={phone} />
+          <Connector compact={phone} />
+          <View style={[styles.parallelBox, phone && styles.parallelBoxCompact]}>
             <Text style={styles.parallelLabel}>SPECIALIZED MODEL CALLS</Text>
             <View style={styles.parallelGrid}>
               {[
@@ -75,11 +117,11 @@ export default function PromptFlowScreen() {
             </View>
             <Text style={styles.repeatNote}>The full transcript enters all four calls</Text>
           </View>
-          <Connector />
-          <PipelineNode icon="view-dashboard-outline" title="Combined output" detail="Independent results assembled at the end" tone="output" />
-        </ApproachCard>
+          <Connector compact={phone} />
+          <PipelineNode icon="view-dashboard-outline" title="Combined output" detail="Independent results assembled at the end" tone="output" compact={phone} />
+        </ApproachCard> : null}
 
-        <ApproachCard
+        {!phone || mobileApproach === 'optimized' ? <ApproachCard
           label="OUR COST-SAVING APPROACH"
           title="Route only what is needed"
           subtitle="Shrink context early, validate with code, and reserve strong reasoning for isolated failures."
@@ -90,26 +132,27 @@ export default function PromptFlowScreen() {
           costLabel="Small windows + compact evidence"
           tradeoffs={['Context is bounded', 'Evidence is checked before publish', 'Only failed units escalate']}
           emphasized
+          compact={phone}
         >
-          <PipelineNode icon="file-document-outline" title="Transcript" detail="Authoritative source with timestamps" tone="neutral" />
-          <Connector />
-          <PipelineNode icon="code-braces" title="Gate + split in code" detail="Reject bad input and create topic-sized windows" tone="code" />
-          <Connector />
-          <PipelineNode icon="filter-variant" title="Cheap extraction" detail="Typed candidates + exact evidence only" tone="cheap" />
-          <Connector />
-          <PipelineNode icon="source-merge" title="Merge + validate in code" detail="Resolve, deduplicate, and flag contradictions" tone="code" />
-          <Connector />
+          <PipelineNode icon="file-document-outline" title="Transcript" detail="Authoritative source with timestamps" tone="neutral" compact={phone} />
+          <Connector compact={phone} />
+          <PipelineNode icon="code-braces" title="Gate + split in code" detail="Reject bad input and create topic-sized windows" tone="code" compact={phone} />
+          <Connector compact={phone} />
+          <PipelineNode icon="filter-variant" title="Cheap extraction" detail="Typed candidates + exact evidence only" tone="cheap" compact={phone} />
+          <Connector compact={phone} />
+          <PipelineNode icon="source-merge" title="Merge + validate in code" detail="Resolve, deduplicate, and flag contradictions" tone="code" compact={phone} />
+          <Connector compact={phone} />
           <View style={styles.routedFinish}>
-            <PipelineNode icon="text-box-check-outline" title="Compact synthesis" detail="Write from merged facts—not the transcript" tone="cheap" />
-            <View style={styles.repairBranch}>
+            <PipelineNode icon="text-box-check-outline" title="Compact synthesis" detail="Write from merged facts—not the transcript" tone="cheap" compact={phone} />
+            <View style={[styles.repairBranch, phone && styles.repairBranchCompact]}>
               <MaterialCommunityIcons name="arrow-up-right" size={16} color={colors.coralDark} />
               <Text style={styles.repairText}>Strong repair sees only the failed unit</Text>
             </View>
           </View>
-        </ApproachCard>
+        </ApproachCard> : null}
       </View>
 
-      <Card style={styles.takeawayCard}>
+      <Card style={[styles.takeawayCard, phone && styles.takeawayCardPhone]}>
         <View style={styles.takeawayIcon}><MaterialCommunityIcons name="lightning-bolt-outline" size={24} color={colors.white} /></View>
         <View style={styles.takeawayCopy}>
           <Text style={styles.takeawayKicker}>THE KEY DIFFERENCE</Text>
@@ -132,6 +175,7 @@ function ApproachCard({
   costLabel,
   tradeoffs,
   emphasized = false,
+  compact = false,
   children,
 }: {
   label: string;
@@ -144,11 +188,12 @@ function ApproachCard({
   costLabel: string;
   tradeoffs: string[];
   emphasized?: boolean;
+  compact?: boolean;
   children: ReactNode;
 }) {
   return (
-    <Card style={[styles.approachCard, emphasized && styles.approachCardEmphasized]}>
-      <View style={styles.approachHeader}>
+    <Card style={[styles.approachCard, compact && styles.approachCardCompact, emphasized && styles.approachCardEmphasized]}>
+      <View style={[styles.approachHeader, compact && styles.approachHeaderCompact]}>
         <View style={styles.approachLabelRow}>
           <Text style={[styles.approachLabel, emphasized && styles.approachLabelEmphasized]}>{label}</Text>
           <View style={[styles.badge, styles[`badge_${badgeTone}`]]}>
@@ -159,7 +204,7 @@ function ApproachCard({
         <Text style={styles.approachSubtitle}>{subtitle}</Text>
       </View>
 
-      <View style={styles.diagram}>{children}</View>
+      <View style={[styles.diagram, compact && styles.diagramCompact]}>{children}</View>
 
       <View style={styles.costBlock}>
         <View style={styles.costTop}>
@@ -192,7 +237,7 @@ function ApproachCard({
   );
 }
 
-function PipelineNode({ icon, title, detail, tone, featured = false }: { icon: IconName; title: string; detail: string; tone: NodeTone; featured?: boolean }) {
+function PipelineNode({ icon, title, detail, tone, featured = false, compact = false }: { icon: IconName; title: string; detail: string; tone: NodeTone; featured?: boolean; compact?: boolean }) {
   const foreground = tone === 'strong'
     ? colors.coralDark
     : tone === 'cheap'
@@ -201,8 +246,8 @@ function PipelineNode({ icon, title, detail, tone, featured = false }: { icon: I
         ? colors.green
         : colors.pine;
   return (
-    <View style={[styles.pipelineNode, styles[`pipelineNode_${tone}`], featured && styles.pipelineNodeFeatured]}>
-      <View style={[styles.nodeIcon, styles[`nodeIcon_${tone}`]]}>
+    <View style={[styles.pipelineNode, compact && styles.pipelineNodeCompact, styles[`pipelineNode_${tone}`], featured && styles.pipelineNodeFeatured, featured && compact && styles.pipelineNodeFeaturedCompact]}>
+      <View style={[styles.nodeIcon, compact && styles.nodeIconCompact, styles[`nodeIcon_${tone}`]]}>
         <MaterialCommunityIcons name={icon} size={19} color={foreground} />
       </View>
       <View style={styles.nodeCopy}>
@@ -213,18 +258,18 @@ function PipelineNode({ icon, title, detail, tone, featured = false }: { icon: I
   );
 }
 
-function Connector() {
+function Connector({ compact = false }: { compact?: boolean }) {
   return (
-    <View style={styles.connector}>
+    <View style={[styles.connector, compact && styles.connectorCompact]}>
       <View style={styles.connectorLine} />
       <MaterialCommunityIcons name="arrow-down" size={16} color={colors.borderStrong} />
     </View>
   );
 }
 
-function OutputCluster() {
+function OutputCluster({ compact = false }: { compact?: boolean }) {
   return (
-    <View style={styles.outputCluster}>
+    <View style={[styles.outputCluster, compact && styles.outputClusterCompact]}>
       <Text style={styles.outputLabel}>ALL OUTPUTS AT ONCE</Text>
       <View style={styles.outputGrid}>
         {['Summary', 'Actions', 'Decisions', 'Topics'].map((label) => (
@@ -240,9 +285,25 @@ const styles = StyleSheet.create({
   eyebrow: { color: colors.coralDark, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.2 },
   comparisonGrid: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.lg },
   comparisonGridStacked: { flexDirection: 'column' },
+  comparisonGridPhone: { gap: 0 },
+  mobilePicker: { gap: spacing.sm, padding: spacing.sm, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surface },
+  mobilePickerHeader: { paddingHorizontal: spacing.xs, paddingTop: spacing.xs, gap: 2 },
+  mobilePickerKicker: { color: colors.ink, fontFamily: font.medium, fontSize: 10, letterSpacing: 0.8 },
+  mobilePickerHint: { color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
+  mobileTabs: { flexDirection: 'row', gap: spacing.xs },
+  mobileTab: { flex: 1, minWidth: 0, minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: spacing.xs, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.canvas },
+  mobileTabSelected: { borderColor: colors.pine, backgroundColor: colors.pine },
+  mobileTabOptimized: { borderColor: colors.green, backgroundColor: colors.green },
+  mobileTabPressed: { opacity: 0.78 },
+  mobileTabLabel: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 10 },
+  mobileTabLabelSelected: { color: colors.white },
+  mobileTabCost: { color: colors.inkFaint, fontFamily: font.mono, fontSize: 7, letterSpacing: 0.5 },
+  mobileTabCostSelected: { color: '#D8E9E3' },
   approachCard: { flex: 1, minWidth: 0, padding: spacing.lg, gap: spacing.lg, ...shadowNone },
+  approachCardCompact: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', padding: spacing.lg, gap: spacing.md },
   approachCardEmphasized: { borderWidth: 2, borderColor: colors.green, backgroundColor: '#FBFEFC' },
   approachHeader: { minHeight: 130, gap: spacing.sm },
+  approachHeaderCompact: { minHeight: 0 },
   approachLabelRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, flexWrap: 'wrap' },
   approachLabel: { color: colors.inkFaint, fontFamily: font.medium, fontSize: 8, letterSpacing: 0.9 },
   approachLabelEmphasized: { color: colors.green },
@@ -257,14 +318,18 @@ const styles = StyleSheet.create({
   badgeText_cheap: { color: colors.blue },
   badgeText_code: { color: colors.green },
   diagram: { flex: 1, minHeight: 420, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.canvas, justifyContent: 'flex-start' },
+  diagramCompact: { flexGrow: 0, flexShrink: 1, flexBasis: 'auto', minHeight: 0, padding: spacing.sm },
   pipelineNode: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderRadius: radius.md },
+  pipelineNodeCompact: { minHeight: 58, padding: spacing.sm },
   pipelineNode_neutral: { borderColor: colors.borderStrong, backgroundColor: colors.surface },
   pipelineNode_strong: { borderColor: colors.coral, backgroundColor: colors.coralSoft },
   pipelineNode_cheap: { borderColor: '#AFCBDA', backgroundColor: colors.blueSoft },
   pipelineNode_code: { borderColor: '#AED0C3', backgroundColor: colors.greenSoft },
   pipelineNode_output: { borderColor: colors.pine, backgroundColor: colors.pineSoft },
   pipelineNodeFeatured: { minHeight: 92 },
+  pipelineNodeFeaturedCompact: { minHeight: 68 },
   nodeIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  nodeIconCompact: { width: 32, height: 32, borderRadius: 10 },
   nodeIcon_neutral: { backgroundColor: colors.surfaceMuted },
   nodeIcon_strong: { backgroundColor: '#F9CDC4' },
   nodeIcon_cheap: { backgroundColor: '#CFE2EC' },
@@ -274,13 +339,16 @@ const styles = StyleSheet.create({
   nodeTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 11 },
   nodeDetail: { color: colors.inkMuted, fontSize: 8, lineHeight: 12 },
   connector: { height: 30, alignItems: 'center', justifyContent: 'center' },
+  connectorCompact: { height: 22 },
   connectorLine: { position: 'absolute', top: 0, bottom: 8, width: 1, backgroundColor: colors.borderStrong },
   outputCluster: { gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.pine, borderRadius: radius.md, backgroundColor: colors.pineSoft },
+  outputClusterCompact: { padding: spacing.sm },
   outputLabel: { color: colors.pine, fontFamily: font.medium, fontSize: 7, letterSpacing: 0.8, textAlign: 'center' },
   outputGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
   outputChip: { width: '48%', paddingVertical: 7, paddingHorizontal: spacing.xs, borderRadius: radius.sm, backgroundColor: colors.surface },
   outputChipText: { color: colors.ink, fontFamily: font.medium, fontSize: 8, textAlign: 'center' },
   parallelBox: { gap: spacing.md, padding: spacing.md, borderWidth: 1, borderColor: '#AFCBDA', borderRadius: radius.md, backgroundColor: colors.blueSoft },
+  parallelBoxCompact: { gap: spacing.sm, padding: spacing.sm },
   parallelLabel: { color: colors.blue, fontFamily: font.medium, fontSize: 7, letterSpacing: 0.8, textAlign: 'center' },
   parallelGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   parallelJob: { width: '48%', minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 4, padding: spacing.xs, borderRadius: radius.sm, backgroundColor: colors.surface },
@@ -288,6 +356,7 @@ const styles = StyleSheet.create({
   repeatNote: { color: colors.blue, fontSize: 8, lineHeight: 12, textAlign: 'center' },
   routedFinish: { gap: spacing.sm },
   repairBranch: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, padding: spacing.sm, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.coral, borderRadius: radius.sm, backgroundColor: colors.coralSoft },
+  repairBranchCompact: { alignItems: 'flex-start', justifyContent: 'flex-start' },
   repairText: { color: colors.coralDark, fontFamily: font.medium, fontSize: 8 },
   costBlock: { gap: spacing.sm, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
   costTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
@@ -303,6 +372,7 @@ const styles = StyleSheet.create({
   tradeoffRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   tradeoffText: { flex: 1, color: colors.inkMuted, fontSize: 9 },
   takeawayCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, backgroundColor: colors.pine, borderColor: colors.pine, ...shadowNone },
+  takeawayCardPhone: { alignItems: 'flex-start', padding: spacing.lg },
   takeawayIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
   takeawayCopy: { flex: 1, gap: 4 },
   takeawayKicker: { color: '#A9CCC0', fontFamily: font.medium, fontSize: 8, letterSpacing: 0.9 },
