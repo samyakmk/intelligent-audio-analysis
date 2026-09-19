@@ -424,10 +424,13 @@ function BatchCard({ batch, active, selected, onSelect }: { batch: DayBatch; act
 }
 
 function BatchOutput({ batch }: { batch: DayBatch }) {
+  const speechProvider = batch.provider?.speech;
+  const intelligenceProvider = batch.provider?.intelligence;
   return (
     <View style={styles.outputStack}>
       {batch.transcript.length ? (
         <OutputBlock icon="text-box-outline" title="1 · Transcript" complete={batch.stage !== 'transcribing'}>
+          {speechProvider ? <ProviderTrace label="Gemini speech" provenance={speechProvider} /> : null}
           {batch.transcript.map((segment) => (
             <View key={segment.id} style={styles.transcriptRow}>
               <Text style={styles.timecode}>{formatDuration(segment.start_ms)}</Text>
@@ -457,6 +460,7 @@ function BatchOutput({ batch }: { batch: DayBatch }) {
 
       {batch.pending_changes.length ? (
         <OutputBlock icon="source-branch" title="4 · Proposed memory mutations" complete={batch.stage === 'published'}>
+          {intelligenceProvider ? <ProviderTrace label="Gemini intelligence" provenance={intelligenceProvider} /> : null}
           {batch.pending_changes.map((change) => <ChangeRow key={change.id} change={change} preview />)}
         </OutputBlock>
       ) : null}
@@ -466,6 +470,15 @@ function BatchOutput({ batch }: { batch: DayBatch }) {
           <Text style={styles.outputText}>Transcript, retrieval evidence, current memory, and revision history became visible together.</Text>
         </OutputBlock>
       ) : null}
+    </View>
+  );
+}
+
+function ProviderTrace({ label, provenance }: { label: string; provenance: { provider?: string; model_alias?: string; resolved_model?: string } }) {
+  return (
+    <View style={styles.providerTrace}>
+      <MaterialCommunityIcons name="creation-outline" size={14} color={colors.pine} />
+      <Text style={styles.providerTraceText}>{label} · {provenance.resolved_model ?? provenance.model_alias ?? provenance.provider}</Text>
     </View>
   );
 }
@@ -615,6 +628,8 @@ const styles = StyleSheet.create({
   emptyCopy: { color: colors.inkMuted, fontSize: 10, lineHeight: 16 },
   outputStack: { gap: spacing.md },
   outputBlock: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.canvas, gap: spacing.md },
+  providerTrace: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.pineSoft },
+  providerTraceText: { color: colors.pine, fontFamily: font.mono, fontSize: 8 },
   outputHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   outputTitle: { flex: 1, color: colors.ink, fontFamily: font.medium, fontSize: 11 },
   outputStatus: { color: colors.coralDark, fontFamily: font.mono, fontSize: 7 },

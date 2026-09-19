@@ -67,6 +67,11 @@ export default function UploadScreen() {
   const approvalSatisfied = isProviderDataApprovalSatisfied(capabilities, providerDataApproved);
   const uploadLanguageAvailable = canUploadInConfiguredLanguage(capabilities);
   const selectedLanguage = resolveUploadLanguage(capabilities, 'auto');
+  const availableSamples = experience === 'day_demo'
+    ? capabilities?.remote_processing
+      ? demoAudioSamples.filter((sample) => sample.id === 'decision-reversal')
+      : dayDemoSamples
+    : demoAudioSamples;
   const quotaRemaining = Math.max(0, (session?.workspace.byte_limit ?? 5 * 1024 ** 3) - (session?.workspace.retained_bytes ?? 0));
 
   const clearFile = () => {
@@ -300,12 +305,12 @@ export default function UploadScreen() {
                 <View style={styles.sampleIntro}>
                   <View style={styles.sampleIcon}><MaterialCommunityIcons name="flask-outline" size={22} color={colors.blue} /></View>
                   <View style={styles.sampleIntroCopy}>
-                  <Text style={styles.sampleTitle}>{experience === 'day_demo' ? 'Synthetic workdays' : 'Synthetic recordings'}</Text>
-                    <Text style={styles.sampleBody}>{experience === 'day_demo' ? 'Each scenario contains later evidence that revises earlier conclusions.' : 'Pick a ready-made scenario to run through the pipeline.'}</Text>
+                  <Text style={styles.sampleTitle}>{experience === 'day_demo' ? (capabilities?.remote_processing ? 'Gemini-ready synthetic day' : 'Synthetic workdays') : 'Synthetic recordings'}</Text>
+                    <Text style={styles.sampleBody}>{experience === 'day_demo' ? (capabilities?.remote_processing ? 'Spoken synthetic audio with a later decision reversal, processed as sequential Gemini batches.' : 'Each scenario contains later evidence that revises earlier conclusions.') : 'Pick a ready-made scenario to run through the pipeline.'}</Text>
                   </View>
                 </View>
                 <View style={styles.sampleList}>
-                  {(experience === 'day_demo' ? dayDemoSamples : demoAudioSamples).map((sample) => (
+                  {availableSamples.map((sample) => (
                     <Pressable
                       key={sample.id}
                       accessibilityRole="button"
@@ -362,7 +367,11 @@ export default function UploadScreen() {
         {fileError ? <Notice tone="error" title="Try another input">{fileError}</Notice> : null}
         {error ? <Notice tone="error" title="Could not continue">{error.message}</Notice> : null}
         {experience === 'day_demo' && inputSource === 'sample' ? (
-          <Notice tone="info" title="Functional architecture fixture">The WAV carries deterministic tones. Its scripted sidecar supplies the transcript so the demo can isolate batching, temporal memory, revisions, and Ask behavior.</Notice>
+          <Notice tone="info" title={capabilities?.remote_processing ? 'Synthetic Gemini test data' : 'Functional architecture fixture'}>
+            {capabilities?.remote_processing
+              ? 'The approved synthetic WAV will be sent to Gemini batch by batch. Provider calls are metered and their resolved models appear in the pipeline.'
+              : 'The WAV carries deterministic tones. Its scripted sidecar supplies the transcript so the demo can isolate batching, temporal memory, revisions, and Ask behavior.'}
+          </Notice>
         ) : null}
 
         {isBusy ? (

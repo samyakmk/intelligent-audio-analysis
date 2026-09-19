@@ -119,6 +119,14 @@ transcription, boundary reconciliation, retrieval indexing, temporal extraction,
 atomic publication. Future batch sidecars remain server-private until their batch reaches
 the transcription checkpoint.
 
+In `gemini` mode, the transcription checkpoint uploads only the arriving, explicitly
+approved batch to Gemini. The extraction checkpoint sends the transcript accumulated
+through that watermark to Gemini and projects the returned grounded intelligence into a
+new temporal-memory snapshot. Each speech and intelligence attempt has a stable batch and
+reset-generation identity, a durable pre-dispatch budget fence, provider provenance, and
+a cost-ledger event. Ask uses Gemini against only the evidence visible through the selected
+batch watermark, so historical questions cannot see later audio.
+
 Published memory uses keyed `add`, `supersede`, and `resolve` operations. Older values
 remain in the change log, while current projections and Ask context exclude superseded
 values. Ask answers carry the processed watermark and may be provisional; re-asking after
@@ -126,10 +134,11 @@ a later publish can return a revised answer and different citations. An expected
 makes stage retries replay-safe. Reset clears projections but preserves immutable batch
 media, and normal recording deletion removes the day session and every derived batch blob.
 
-This path is currently a deterministic architecture demo. Its two checked-in long-form
-WAVs are tone carriers with explicitly labeled scripted transcript sidecars. Arbitrary day
-uploads are split and retained, but stop at a visible fixture/provider boundary instead of
-inventing transcript evidence.
+In `fixture` mode, the two checked-in long-form WAVs remain deterministic tone carriers
+with explicitly labeled scripted transcript sidecars. In `gemini` mode, the upload screen
+instead offers approved spoken synthetic audio and requires the existing provider-data
+approval checkbox. Arbitrary approved day uploads follow the same real batch pipeline;
+unapproved uploads fail before any bytes can reach the provider.
 
 ## Canonical lifecycle
 

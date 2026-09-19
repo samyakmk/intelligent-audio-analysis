@@ -14,10 +14,20 @@ from sqlalchemy.orm import Session
 from .blobstore import BlobAlreadyExists, BlobStore
 from .day_fixture import choose_batch_boundaries, find_day_fixture, split_wav
 from .domain import (
+    BudgetExceeded,
+    BudgetReservationUnavailable,
+    StaleGeneration,
+    _cost_once,
+    _ledger_billed_failure,
+    _provider_actual_cost,
     _publish_intelligence,
     _publish_transcript,
     _rebuild_evidence,
+    commit_budget,
     emit_event,
+    mark_budget_dispatched,
+    reserve_budget,
+    settle_interrupted_budget,
 )
 from .models import (
     ActionItem,
@@ -31,6 +41,14 @@ from .models import (
     TranscriptSegment,
     TranscriptVersion,
     utcnow,
+)
+from .providers import (
+    AskRequest,
+    LLMAdapter,
+    ProviderBilledFailure,
+    ProviderUnavailable,
+    SpeechAdapter,
+    SpeechRequest,
 )
 
 MEMORY_COLLECTIONS = {
@@ -58,6 +76,7 @@ def initialize_day_session(
     source_bytes: bytes,
     *,
     fixture_root: Any,
+    provider_mode: str = "fixture",
 ) -> DaySession:
     fixture = find_day_fixture(fixture_root, recording.sha256 or "")
     segments = fixture.get("segments", []) if fixture else []
@@ -82,6 +101,9 @@ def initialize_day_session(
         memory_state=empty_memory(),
         change_log=[],
         ask_history=[],
+        pipeline_version=(
+            "day-memory-gemini.v1" if provider_mode == "gemini" else "day-memory-demo.v1"
+        ),
     )
     db.add(session)
     db.flush()
@@ -146,6 +168,7 @@ def initialize_day_session(
                 source_payload={
                     "segments": batch_segments,
                     "operations": batch_operations,
+                    "attempt_generation": 0,
                 },
             )
         )
@@ -221,9 +244,12 @@ def day_session_payload(
         "changes": session.change_log or [],
         "ask_history": session.ask_history or [],
         "suggested_questions": fixture.get("suggested_questions", []) if fixture else [],
-        "mock": bool(fixture),
+        "mock": session.pipeline_version != "day-memory-gemini.v1",
         "notice": (
-            fixture.get("provenance", {}).get("notice")
+            "Each batch is transcribed and analyzed by Gemini only after it arrives. "
+            "Later batches can revise prior memory; provider usage is cost-metered."
+            if session.pipeline_version == "day-memory-gemini.v1"
+            else fixture.get("provenance", {}).get("notice")
             if fixture
             else "No local transcript fixture matches this source."
         ),
@@ -248,6 +274,12 @@ def day_session_payload(
                 "index_state": item.index_state or {},
                 "pending_changes": item.pending_changes or [],
                 "published_snapshot": item.published_snapshot or {},
+                "provider": {
+                    "speech": (item.source_payload or {}).get("speech_provenance"),
+                    "intelligence": (item.source_payload or {}).get(
+                        "intelligence_provenance"
+                    ),
+                },
                 "started_at": item.started_at,
                 "completed_at": item.completed_at,
             }
@@ -393,7 +425,8 @@ def _publish_canonical_snapshot(
     db: Session,
     recording: Recording,
     session: DaySession,
-    fixture: dict[str, Any],
+    fixture: dict[str, Any] | None,
+    batch: DayBatch,
 ) -> None:
     segments = _all_published_segments(db, session)
     if not segments:
@@ -411,17 +444,27 @@ def _publish_canonical_snapshot(
                 "state": "unreadable",
             }
         )
+    speech_provenance = (batch.source_payload or {}).get("speech_provenance") or {}
+    intelligence_provenance = (batch.source_payload or {}).get(
+        "intelligence_provenance"
+    ) or {}
+    is_mock = session.pipeline_version != "day-memory-gemini.v1"
     result = SimpleNamespace(
         timeline=timeline,
         segments=[
             {**item, "speaker_cluster_id": item.get("speaker_id")}
             for item in segments
         ],
-        provider="mock.day-fixture",
-        resolved_model="scripted-day-memory-v1",
+        provider=speech_provenance.get("provider", "mock.day-fixture"),
+        resolved_model=speech_provenance.get(
+            "resolved_model", "scripted-day-memory-v1"
+        ),
         provenance={
-            "mock": True,
-            "source": "approved_day_fixture_sidecar",
+            **speech_provenance,
+            "mock": is_mock,
+            "source": (
+                "approved_day_fixture_sidecar" if is_mock else "gemini_batch_transcription"
+            ),
             "pipeline_version": session.pipeline_version,
             "schema_version": "CanonicalTranscript.v1",
             "prompt_version": "day-fixture.v1",
@@ -465,7 +508,9 @@ def _publish_canonical_snapshot(
     first_citation = _citation(recording, segments[0], transcript.version)
     payload = {
         "title": {
-            "text": fixture.get("title", recording.display_name),
+            "text": fixture.get("title", recording.display_name)
+            if fixture
+            else recording.display_name,
             "evidence": [first_citation],
             "confidence": 1.0,
         },
@@ -510,7 +555,14 @@ def _publish_canonical_snapshot(
         ],
         "open_questions": material("open_questions", "question"),
         "warnings": [
-            "This is deterministic scripted day-demo data, not ASR or model-generated output.",
+            (
+                "This snapshot was generated from sequential Gemini batch processing."
+                if not is_mock
+                else (
+                    "This is deterministic scripted day-demo data, not ASR or "
+                    "model-generated output."
+                )
+            ),
             "The newest batch remains provisional until later context arrives.",
         ],
     }
@@ -520,15 +572,20 @@ def _publish_canonical_snapshot(
         transcript.version,
         payload,
         {
-            "mock": True,
-            "provider": "mock.day-fixture",
-            "model_alias": "llm.fixture",
-            "resolved_model": "scripted-day-memory-v1",
+            **intelligence_provenance,
+            "mock": is_mock,
+            "provider": intelligence_provenance.get("provider", "mock.day-fixture"),
+            "model_alias": intelligence_provenance.get("model_alias", "llm.fixture"),
+            "resolved_model": intelligence_provenance.get(
+                "resolved_model", "scripted-day-memory-v1"
+            ),
             "pipeline_version": session.pipeline_version,
             "prompt_version": "day-fixture.v1",
             "schema_version": "RecordingIntelligence.v1",
             "policy_version": "synthetic-functional-only.v1",
-            "usage": {"input_tokens": 0, "output_tokens": 0},
+            "usage": intelligence_provenance.get(
+                "usage", {"input_tokens": 0, "output_tokens": 0}
+            ),
         },
     )
     recording.intelligence_version = intelligence.version
@@ -539,12 +596,346 @@ def _publish_canonical_snapshot(
     recording.etag_version += 1
 
 
+def _day_attempt_id(stage: str, session: DaySession, batch: DayBatch) -> str:
+    generation = int((batch.source_payload or {}).get("attempt_generation", 0))
+    return f"day-{stage}:{session.id}:{batch.batch_index}:g{generation}"
+
+
+def _dispatch_day_speech(
+    db: Session,
+    blob_store: BlobStore,
+    speech: SpeechAdapter,
+    settings: Any,
+    recording: Recording,
+    session: DaySession,
+    batch: DayBatch,
+) -> None:
+    expected_generation = int((batch.source_payload or {}).get("attempt_generation", 0))
+    if not batch.blob_key or not batch.sha256:
+        raise ProviderUnavailable("The arriving batch has no sealed audio payload")
+    audio_bytes = blob_store.get(batch.blob_key)
+    attempt_id = _day_attempt_id("speech", session, batch)
+    request = SpeechRequest(
+        recording_id=recording.id,
+        audio_sha256=batch.sha256,
+        audio_reference=batch.id,
+        original_time_offset_ms=batch.start_ms,
+        language=recording.requested_language,
+        vocabulary_hints=tuple(recording.vocabulary_hints or []),
+        require_diarization=True,
+        require_timestamps=True,
+        budget_usd=settings.recording_cost_ceiling_usd,
+        request_id=attempt_id,
+        audio_bytes=audio_bytes,
+        content_type="audio/wav",
+        duration_ms=batch.end_ms - batch.start_ms,
+    )
+    reservation = speech.estimate_transcription_reservation(request)
+    reserve_budget(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_speech",
+        amount_usd=reservation,
+        per_request_cap_usd=settings.recording_cost_ceiling_usd,
+        recording_cap_usd=settings.recording_cost_ceiling_usd,
+    )
+    mark_budget_dispatched(db, attempt_id=attempt_id)
+    db.commit()
+    try:
+        result = speech.transcribe(request)
+    except Exception as failure:
+        db.rollback()
+        if isinstance(failure, ProviderBilledFailure):
+            _ledger_billed_failure(
+                db,
+                failure,
+                workspace_id=recording.workspace_id,
+                recording_id=recording.id,
+                stage="day_speech",
+            )
+        else:
+            settle_interrupted_budget(
+                db,
+                attempt_id=attempt_id,
+                provider_dispatched=True,
+                reason="day_speech_provider_failure",
+            )
+        db.commit()
+        raise
+    shifted = []
+    for item in result.segments:
+        shifted.append(
+            {
+                **item,
+                "id": f"batch-{batch.batch_index + 1}-{item['id']}",
+                "start_ms": batch.start_ms + int(item["start_ms"]),
+                "end_ms": batch.start_ms + int(item["end_ms"]),
+                "speaker_id": item.get("speaker_id") or item.get("speaker_cluster_id"),
+            }
+        )
+    provenance = {
+        **result.provenance,
+        "provider": result.provider,
+        "model_alias": result.model_alias,
+        "resolved_model": result.resolved_model,
+        "usage": result.usage,
+        "provider_data_approved": recording.provider_data_approved,
+    }
+    actual = _provider_actual_cost(provenance, result.usage)
+    _cost_once(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_speech",
+        provider=result.provider,
+        model_alias=result.model_alias,
+        resolved_model=result.resolved_model,
+        usage=result.usage,
+        estimated=actual,
+        provenance=provenance,
+    )
+    commit_budget(db, attempt_id=attempt_id, actual_usd=actual)
+    db.expire_all()
+    current_recording = db.get(Recording, recording.id)
+    current_session = db.get(DaySession, session.id)
+    current_batch = db.get(DayBatch, batch.id)
+    if (
+        current_recording is None
+        or current_recording.deleted_at is not None
+        or current_session is None
+        or current_batch is None
+        or current_batch.stage != "transcribing"
+        or int((current_batch.source_payload or {}).get("attempt_generation", 0))
+        != expected_generation
+    ):
+        db.commit()
+        raise StaleGeneration("The day session changed while Gemini was transcribing")
+    batch = current_batch
+    batch.transcript = shifted
+    batch.source_payload = {**(batch.source_payload or {}), "speech_provenance": provenance}
+
+
+def _memory_projection(
+    prior_memory: dict[str, Any],
+    payload: dict[str, Any],
+    batch_index: int,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    field_map = {
+        "decision": ("decisions", "decision"),
+        "action": ("actions", "task"),
+        "fact": ("facts", "claim"),
+        "open_question": ("open_questions", "question"),
+    }
+    updated = json.loads(json.dumps(prior_memory))
+    changes: list[dict[str, Any]] = []
+    for kind, (collection, text_field) in field_map.items():
+        prior_active = {
+            re.sub(r"\s+", " ", item["text"].strip().casefold()): item
+            for item in updated.get(collection, [])
+            if item.get("status") != "superseded"
+        }
+        seen: set[str] = set()
+        for position, raw in enumerate(payload.get(collection, [])):
+            text = str(raw[text_field]).strip()
+            normalized = re.sub(r"\s+", " ", text.casefold())
+            seen.add(normalized)
+            if normalized in prior_active:
+                continue
+            digest = hashlib.sha256(normalized.encode()).hexdigest()[:10]
+            item_id = f"gemini-{batch_index + 1}-{kind}-{position + 1}-{digest}"
+            evidence = [
+                {
+                    "segment_id": citation["segment_id"],
+                    "start_ms": citation["start_ms"],
+                    "end_ms": citation["end_ms"],
+                    "speaker_id": citation.get("speaker_id"),
+                    "quote": citation.get("quote"),
+                }
+                for citation in raw.get("evidence", [])
+            ]
+            status = str(raw.get("status") or ("open" if kind == "open_question" else "current"))
+            if status.casefold() in {"complete", "completed", "done", "closed"}:
+                status = "resolved"
+            item = {
+                "id": item_id,
+                "key": item_id,
+                "kind": kind,
+                "text": text,
+                "status": status,
+                "owner": raw.get("owner_text"),
+                "due": raw.get("due_text"),
+                "effective_batch": batch_index,
+                "evidence": evidence,
+            }
+            updated.setdefault(collection, []).append(item)
+            changes.append(
+                {
+                    "id": item_id,
+                    "operation": "add",
+                    "kind": kind,
+                    "key": item_id,
+                    "before": None,
+                    "after": text,
+                    "owner_before": None,
+                    "owner_after": raw.get("owner_text"),
+                    "batch_index": batch_index,
+                    "evidence": evidence[0] if evidence else None,
+                }
+            )
+        for normalized, prior in prior_active.items():
+            if normalized in seen:
+                continue
+            prior["status"] = "superseded"
+            operation = "resolve" if kind in {"action", "open_question"} else "supersede"
+            changes.append(
+                {
+                    "id": f"{prior['id']}-retired-{batch_index + 1}",
+                    "operation": operation,
+                    "kind": kind,
+                    "key": prior["key"],
+                    "before": prior["text"],
+                    "after": "No longer present in the current Gemini snapshot.",
+                    "owner_before": prior.get("owner"),
+                    "owner_after": None,
+                    "batch_index": batch_index,
+                    "evidence": prior.get("evidence", [None])[0],
+                }
+            )
+    summary = payload.get("summary") or {}
+    updated["summary"] = str(summary.get("short") or summary.get("detailed") or updated["summary"])
+    return updated, changes
+
+
+def _dispatch_day_intelligence(
+    db: Session,
+    llm: LLMAdapter,
+    settings: Any,
+    recording: Recording,
+    session: DaySession,
+    batch: DayBatch,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    expected_generation = int((batch.source_payload or {}).get("attempt_generation", 0))
+    segments = [
+        segment
+        for prior in db.scalars(
+            select(DayBatch)
+            .where(
+                DayBatch.day_session_id == session.id,
+                DayBatch.batch_index <= batch.batch_index,
+            )
+            .order_by(DayBatch.batch_index)
+        ).all()
+        for segment in (prior.transcript or [])
+    ]
+    attempt_id = _day_attempt_id("intelligence", session, batch)
+    estimate = llm.estimate_intelligence_reservation(
+        recording_id=recording.id,
+        transcript_version=batch.batch_index + 1,
+        segments=segments,
+        budget_usd=settings.recording_cost_ceiling_usd,
+    )
+    reserve_budget(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_intelligence",
+        amount_usd=estimate,
+        per_request_cap_usd=settings.recording_cost_ceiling_usd,
+        recording_cap_usd=settings.recording_cost_ceiling_usd,
+    )
+    mark_budget_dispatched(db, attempt_id=attempt_id)
+    db.commit()
+    try:
+        payload, provenance = llm.extract_intelligence(
+            recording_id=recording.id,
+            transcript_version=batch.batch_index + 1,
+            segments=segments,
+            request_id=attempt_id,
+            budget_usd=estimate,
+        )
+    except Exception as failure:
+        db.rollback()
+        if isinstance(failure, ProviderBilledFailure):
+            _ledger_billed_failure(
+                db,
+                failure,
+                workspace_id=recording.workspace_id,
+                recording_id=recording.id,
+                stage="day_intelligence",
+            )
+        else:
+            settle_interrupted_budget(
+                db,
+                attempt_id=attempt_id,
+                provider_dispatched=True,
+                reason="day_intelligence_provider_failure",
+            )
+        db.commit()
+        raise
+    actual = _provider_actual_cost(provenance, provenance.get("usage", {}))
+    _cost_once(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_intelligence",
+        provider=provenance["provider"],
+        model_alias=provenance["model_alias"],
+        resolved_model=provenance["resolved_model"],
+        usage=provenance.get("usage", {}),
+        estimated=actual,
+        provenance=provenance,
+    )
+    commit_budget(db, attempt_id=attempt_id, actual_usd=actual)
+    db.expire_all()
+    current_recording = db.get(Recording, recording.id)
+    current_session = db.get(DaySession, session.id)
+    current_batch = db.get(DayBatch, batch.id)
+    if (
+        current_recording is None
+        or current_recording.deleted_at is not None
+        or current_session is None
+        or current_batch is None
+        or current_batch.stage != "extracting"
+        or int((current_batch.source_payload or {}).get("attempt_generation", 0))
+        != expected_generation
+    ):
+        db.commit()
+        raise StaleGeneration("The day session changed while Gemini was analyzing it")
+    batch = current_batch
+    batch.source_payload = {
+        **(batch.source_payload or {}),
+        "intelligence_provenance": provenance,
+    }
+    return _memory_projection(session.memory_state or empty_memory(), payload, batch.batch_index)
+
+
+def _fail_day_provider(
+    recording: Recording, session: DaySession, error: Exception
+) -> None:
+    session.status = "failed"
+    session.error_code = getattr(error, "code", "day_provider_unavailable")
+    session.error_detail = str(error)
+    recording.status = "PARTIAL" if session.processed_batch_count else "FAILED_RETRYABLE"
+    recording.stage = "partial" if session.processed_batch_count else "failed"
+    recording.error_code = session.error_code
+    recording.error_detail = session.error_detail
+
+
 def advance_day_session(
     db: Session,
     recording: Recording,
     session: DaySession,
     *,
     fixture_root: Any,
+    blob_store: BlobStore,
+    speech: SpeechAdapter,
+    llm: LLMAdapter,
+    settings: Any,
 ) -> None:
     if session.status == "complete":
         return
@@ -556,7 +947,18 @@ def advance_day_session(
         recording.status = "READY"
         recording.stage = "ready"
         return
-    if fixture is None:
+    gemini_enabled = session.pipeline_version == "day-memory-gemini.v1"
+    if gemini_enabled and not recording.provider_data_approved:
+        _fail_day_provider(
+            recording,
+            session,
+            ProviderUnavailable(
+                "Remote day processing requires persisted provider-data approval"
+            ),
+        )
+        session.revision += 1
+        return
+    if fixture is None and not gemini_enabled:
         session.status = "failed"
         session.error_code = "day_fixture_unavailable"
         session.error_detail = (
@@ -577,7 +979,23 @@ def advance_day_session(
         batch.status = "processing"
 
     if batch.stage == "waiting":
-        batch.transcript = json.loads(json.dumps(batch.source_payload.get("segments", [])))
+        if gemini_enabled:
+            batch.stage = "transcribing"
+            session.current_stage = "transcribing"
+            session.revision += 1
+            try:
+                _dispatch_day_speech(
+                    db, blob_store, speech, settings, recording, session, batch
+                )
+                db.commit()
+            except (ProviderUnavailable, BudgetExceeded, BudgetReservationUnavailable) as error:
+                _fail_day_provider(recording, session, error)
+                return
+            return
+        else:
+            batch.transcript = json.loads(
+                json.dumps(batch.source_payload.get("segments", []))
+            )
         batch.stage = "transcribing"
         session.current_stage = "transcribing"
     elif batch.stage == "transcribing":
@@ -621,19 +1039,44 @@ def advance_day_session(
         batch.stage = "indexing"
         session.current_stage = "indexing"
     elif batch.stage == "indexing":
-        batch.pending_changes = _preview_changes(
-            session.memory_state or empty_memory(),
-            batch.source_payload.get("operations", []),
-            batch.batch_index,
-        )
+        if gemini_enabled:
+            batch.stage = "extracting"
+            session.current_stage = "extracting"
+            session.revision += 1
+            try:
+                proposed_memory, proposed_changes = _dispatch_day_intelligence(
+                    db, llm, settings, recording, session, batch
+                )
+            except (ProviderUnavailable, BudgetExceeded, BudgetReservationUnavailable) as error:
+                _fail_day_provider(recording, session, error)
+                return
+            batch.pending_changes = proposed_changes
+            batch.source_payload = {
+                **(batch.source_payload or {}),
+                "proposed_memory": proposed_memory,
+            }
+            db.commit()
+            return
+        else:
+            batch.pending_changes = _preview_changes(
+                session.memory_state or empty_memory(),
+                batch.source_payload.get("operations", []),
+                batch.batch_index,
+            )
         batch.stage = "extracting"
         session.current_stage = "extracting"
     elif batch.stage == "extracting":
-        memory, changes = _apply_operations(
-            session.memory_state or empty_memory(),
-            batch.source_payload.get("operations", []),
-            batch,
-        )
+        if gemini_enabled:
+            memory = json.loads(
+                json.dumps(batch.source_payload.get("proposed_memory") or empty_memory())
+            )
+            changes = json.loads(json.dumps(batch.pending_changes or []))
+        else:
+            memory, changes = _apply_operations(
+                session.memory_state or empty_memory(),
+                batch.source_payload.get("operations", []),
+                batch,
+            )
         batch.status = "complete"
         batch.stage = "published"
         batch.completed_at = utcnow()
@@ -642,12 +1085,13 @@ def advance_day_session(
         published_ids = {
             item["id"] for item in _all_published_segments(db, session)
         }
-        _update_summary(memory, fixture, published_ids)
+        if fixture and not gemini_enabled:
+            _update_summary(memory, fixture, published_ids)
         session.memory_state = memory
         session.change_log = [*(session.change_log or []), *changes]
         batch.published_snapshot = json.loads(json.dumps(memory))
         session.current_stage = "publishing"
-        _publish_canonical_snapshot(db, recording, session, fixture)
+        _publish_canonical_snapshot(db, recording, session, fixture, batch)
         emit_event(
             db,
             recording,
@@ -671,6 +1115,89 @@ def advance_day_session(
     session.revision += 1
 
 
+def _dispatch_day_ask(
+    db: Session,
+    llm: LLMAdapter,
+    settings: Any,
+    recording: Recording,
+    question: str,
+    segments: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]], bool]:
+    evidence = [
+        {
+            "snippet": segment["text"],
+            "citation": _citation(
+                recording, segment, max(1, recording.transcript_version)
+            ),
+        }
+        for segment in segments[-12:]
+    ]
+    attempt_id = f"day-ask:{uuid.uuid4()}"
+    request = AskRequest(
+        question=question,
+        evidence=evidence,
+        request_id=attempt_id,
+        budget_usd=settings.ask_cost_ceiling_usd,
+    )
+    estimate = llm.estimate_ask_reservation(request)
+    reserve_budget(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_ask",
+        amount_usd=estimate,
+        per_request_cap_usd=settings.ask_cost_ceiling_usd,
+        recording_cap_usd=settings.recording_cost_ceiling_usd,
+    )
+    mark_budget_dispatched(db, attempt_id=attempt_id)
+    db.commit()
+    try:
+        result = llm.answer(
+            AskRequest(
+                question=question,
+                evidence=evidence,
+                request_id=attempt_id,
+                budget_usd=estimate,
+            )
+        )
+    except Exception as failure:
+        db.rollback()
+        if isinstance(failure, ProviderBilledFailure):
+            _ledger_billed_failure(
+                db,
+                failure,
+                workspace_id=recording.workspace_id,
+                recording_id=recording.id,
+                stage="day_ask",
+            )
+        else:
+            settle_interrupted_budget(
+                db,
+                attempt_id=attempt_id,
+                provider_dispatched=True,
+                reason="day_ask_provider_failure",
+            )
+        db.commit()
+        raise
+    actual = _provider_actual_cost(result.provenance, result.provenance.get("usage", {}))
+    _cost_once(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_ask",
+        provider=result.provenance["provider"],
+        model_alias=result.provenance["model_alias"],
+        resolved_model=result.provenance["resolved_model"],
+        usage=result.provenance.get("usage", {}),
+        estimated=actual,
+        provenance=result.provenance,
+    )
+    commit_budget(db, attempt_id=attempt_id, actual_usd=actual)
+    return result.answer, result.citations, result.abstained
+
+
 def answer_day_question(
     db: Session,
     recording: Recording,
@@ -679,6 +1206,8 @@ def answer_day_question(
     *,
     through_batch_index: int | None = None,
     fixture_root: Any,
+    llm: LLMAdapter,
+    settings: Any,
 ) -> dict[str, Any]:
     fixture = _fixture_for_session(session, fixture_root)
     selected_batches = _published_batches(db, session, through_batch_index)
@@ -697,7 +1226,17 @@ def answer_day_question(
     citations: list[dict[str, Any]] = []
     provisional = watermark_ms < (recording.duration_ms or watermark_ms)
     strategy = "lexical_evidence"
-    if fixture:
+    if session.pipeline_version == "day-memory-gemini.v1" and processed_segments:
+        answer, citations, abstained = _dispatch_day_ask(
+            db, llm, settings, recording, question, processed_segments
+        )
+        strategy = "gemini_grounded_day_snapshot"
+        if abstained:
+            answer = (
+                answer
+                or "I do not have enough evidence in the batches processed so far."
+            )
+    elif fixture:
         scored_answers = []
         for candidate in fixture.get("ask_answers", []):
             keywords = set(candidate.get("keywords", []))
@@ -755,7 +1294,7 @@ def answer_day_question(
                 _citation(recording, item, recording.transcript_version)
                 for item in selected_segments
             ]
-    abstained = not bool(answer)
+    abstained = not bool(answer) if strategy != "gemini_grounded_day_snapshot" else abstained
     if abstained:
         answer = (
             "I do not have enough evidence in the batches processed so far. "
@@ -797,6 +1336,12 @@ def reset_day_session(db: Session, recording: Recording, session: DaySession) ->
         select(DayBatch).where(DayBatch.day_session_id == session.id).with_for_update()
     ).all()
     for batch in batches:
+        source = batch.source_payload or {}
+        batch.source_payload = {
+            "segments": source.get("segments", []),
+            "operations": source.get("operations", []),
+            "attempt_generation": int(source.get("attempt_generation", 0)) + 1,
+        }
         batch.status = "queued"
         batch.stage = "waiting"
         batch.transcript = []

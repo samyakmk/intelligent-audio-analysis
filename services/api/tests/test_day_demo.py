@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import replace
 
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from app.models import DayBatch, DaySession, MediaObject
+from app.main import create_app
+from app.models import CostEvent, DayBatch, DaySession, MediaObject
+from app.providers import (
+    AskRequest,
+    AskResult,
+    LLMAdapter,
+    SpeechAdapter,
+    SpeechRequest,
+    SpeechResult,
+)
 
 from .conftest import FIXTURE_ROOT, login, mutation_headers
 
@@ -25,6 +35,7 @@ def upload_day(
     *,
     fixture_id: str = "atlas-launch-day",
     batch_count: int = 5,
+    provider_data_approved: bool = False,
 ) -> tuple[str, dict]:
     fixture, data = load_day_audio(fixture_id)
     digest = hashlib.sha256(data).hexdigest()
@@ -38,6 +49,7 @@ def upload_day(
             "language": "en",
             "vocabulary_hints": [],
             "mode": "standard",
+            "provider_data_approved": provider_data_approved,
             "experience": "day_demo",
             "batch_count": batch_count,
         },
@@ -277,3 +289,180 @@ def test_deleting_day_demo_revokes_session_and_purges_batch_media(
                 MediaObject.recording_id == recording_id
             )
         ) == 0
+
+
+class _GeminiSpeechStub(SpeechAdapter):
+    def __init__(self) -> None:
+        self.requests: list[SpeechRequest] = []
+
+    def estimate_transcription_reservation(self, request: SpeechRequest) -> float:
+        return 0.01
+
+    def transcribe(self, request: SpeechRequest) -> SpeechResult:
+        self.requests.append(request)
+        return SpeechResult(
+            timeline=[
+                {
+                    "id": "speech",
+                    "start_ms": 0,
+                    "end_ms": request.duration_ms,
+                    "state": "speech",
+                }
+            ],
+            segments=[
+                {
+                    "id": "segment-1",
+                    "start_ms": 0,
+                    "end_ms": min(5_000, (request.duration_ms or 5_001) - 1),
+                    "speaker_cluster_id": "speaker-a",
+                    "language_bcp47": "en-US",
+                    "text": "The Atlas launch is provisionally planned for Friday using Nimbus.",
+                    "confidence": 0.98,
+                }
+            ],
+            provider="google.gemini",
+            model_alias="speech.standard",
+            resolved_model="gemini-test-speech",
+            provider_request_id=request.request_id,
+            usage={"input_tokens": 100, "output_tokens": 40, "estimated_cost_usd": 0.001},
+            provenance={
+                "provider": "google.gemini",
+                "model_alias": "speech.standard",
+                "resolved_model": "gemini-test-speech",
+                "price_catalog_version": "test-prices",
+            },
+        )
+
+
+class _GeminiLLMStub(LLMAdapter):
+    def __init__(self) -> None:
+        self.intelligence_calls = 0
+        self.ask_calls = 0
+
+    def estimate_intelligence_reservation(self, **_: object) -> float:
+        return 0.01
+
+    def extract_intelligence(self, **kwargs: object) -> tuple[dict, dict]:
+        self.intelligence_calls += 1
+        segments = kwargs["segments"]
+        segment = segments[0]
+        citation = {
+            "recording_id": kwargs["recording_id"],
+            "transcript_version": kwargs["transcript_version"],
+            "segment_id": segment["id"],
+            "start_ms": segment["start_ms"],
+            "end_ms": segment["end_ms"],
+            "speaker_id": segment.get("speaker_id"),
+            "quote": segment["text"],
+        }
+        payload = {
+            "summary": {"short": "Atlas is provisionally planned for Friday using Nimbus."},
+            "facts": [],
+            "decisions": [
+                {
+                    "decision": "Launch Atlas Friday using Nimbus.",
+                    "status": "provisional",
+                    "evidence": [citation],
+                }
+            ],
+            "actions": [],
+            "open_questions": [],
+        }
+        provenance = {
+            "provider": "google.gemini",
+            "model_alias": "llm.cheap",
+            "resolved_model": "gemini-test-llm",
+            "price_catalog_version": "test-prices",
+            "usage": {"input_tokens": 80, "output_tokens": 30},
+            "estimated_cost_usd": 0.001,
+        }
+        return payload, provenance
+
+    def estimate_ask_reservation(self, request: AskRequest) -> float:
+        return 0.01
+
+    def answer(self, request: AskRequest) -> AskResult:
+        self.ask_calls += 1
+        return AskResult(
+            answer="The current plan is a provisional Friday launch using Nimbus.",
+            citations=[request.evidence[0]["citation"]],
+            abstained=False,
+            provenance={
+                "provider": "google.gemini",
+                "model_alias": "llm.cheap",
+                "resolved_model": "gemini-test-llm",
+                "price_catalog_version": "test-prices",
+                "usage": {"input_tokens": 60, "output_tokens": 20},
+                "estimated_cost_usd": 0.001,
+            },
+        )
+
+
+def test_day_gemini_mode_dispatches_metered_batch_and_ask_calls(settings) -> None:
+    gemini_settings = replace(
+        settings,
+        provider_mode="gemini",
+        allow_remote_provider_calls=True,
+        gemini_api_key="test-only-gemini-key",
+        seed_demo_recordings=False,
+    )
+    speech = _GeminiSpeechStub()
+    llm = _GeminiLLMStub()
+    app = create_app(gemini_settings)
+    app.state.speech_adapter = speech
+    app.state.llm_adapter = llm
+    with TestClient(app, base_url="http://testserver") as gemini_client:
+        csrf, _ = login(gemini_client)
+        recording_id, _ = upload_day(
+            gemini_client,
+            csrf,
+            provider_data_approved=True,
+        )
+        state = gemini_client.get(f"/v1/day-sessions/{recording_id}").json()
+        assert state["mock"] is False
+        assert "Gemini" in state["notice"]
+        initial_revision = state["revision"]
+        state = advance(gemini_client, csrf, recording_id, state)
+        replay = gemini_client.post(
+            f"/v1/day-sessions/{recording_id}/advance",
+            json={"expected_revision": initial_revision},
+            headers=mutation_headers(csrf),
+        )
+        assert replay.status_code == 200
+        assert replay.json()["revision"] == state["revision"]
+        assert len(speech.requests) == 1
+        for _ in range(4):
+            state = advance(gemini_client, csrf, recording_id, state)
+        assert state["processed_batch_count"] == 1
+        assert len(speech.requests) == 1
+        assert llm.intelligence_calls == 1
+        assert state["batches"][0]["provider"]["speech"]["provider"] == "google.gemini"
+        assert state["batches"][0]["provider"]["intelligence"]["provider"] == "google.gemini"
+        response = gemini_client.post(
+            f"/v1/day-sessions/{recording_id}/ask",
+            json={"question": "What is the launch plan?", "batch_index": 0},
+            headers=mutation_headers(csrf),
+        )
+        assert response.status_code == 201, response.text
+        assert response.json()["strategy"] == "gemini_grounded_day_snapshot"
+        assert llm.ask_calls == 1
+        reset = gemini_client.post(
+            f"/v1/day-sessions/{recording_id}/reset",
+            json={"expected_revision": state["revision"]},
+            headers=mutation_headers(csrf),
+        )
+        assert reset.status_code == 200, reset.text
+        replayed = advance(gemini_client, csrf, recording_id, reset.json())
+        assert replayed["current_stage"] == "transcribing"
+        assert len(speech.requests) == 2
+        assert speech.requests[0].request_id != speech.requests[1].request_id
+        with app.state.database.session_factory() as db:
+            events = db.scalars(
+                select(CostEvent).where(CostEvent.recording_id == recording_id)
+            ).all()
+            assert {event.stage for event in events} == {
+                "day_speech",
+                "day_intelligence",
+                "day_ask",
+            }
+            assert all(event.provider == "google.gemini" for event in events)

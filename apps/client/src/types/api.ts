@@ -184,6 +184,10 @@ export interface DayBatch {
   };
   pending_changes: DayChange[];
   published_snapshot: Partial<DayMemory>;
+  provider?: {
+    speech?: { provider?: string; model_alias?: string; resolved_model?: string; usage?: Record<string, unknown> } | null;
+    intelligence?: { provider?: string; model_alias?: string; resolved_model?: string; usage?: Record<string, unknown> } | null;
+  };
   started_at?: IsoDate | null;
   completed_at?: IsoDate | null;
 }

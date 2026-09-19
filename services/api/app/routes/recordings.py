@@ -625,6 +625,7 @@ def complete_upload(
             recording,
             data,
             fixture_root=request.app.state.settings.fixture_root,
+            provider_mode=request.app.state.settings.provider_mode,
         )
         db.add(
             OutboxEvent(

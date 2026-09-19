@@ -12,6 +12,8 @@ from ..day_domain import (
     get_day_session,
     reset_day_session,
 )
+from ..domain import BudgetExceeded, BudgetReservationUnavailable, StaleGeneration
+from ..providers import ProviderUnavailable
 from ..schemas import DayAdvanceRequest, DayAskRequest, DayResetRequest
 
 router = APIRouter(prefix="/v1/day-sessions", tags=["day-sessions"])
@@ -50,12 +52,20 @@ def advance_day(
     if payload.expected_revision > session.revision:
         raise HTTPException(status_code=409, detail="Day session revision is ahead of the server")
     if payload.expected_revision == session.revision:
-        advance_day_session(
-            db,
-            recording,
-            session,
-            fixture_root=request.app.state.settings.fixture_root,
-        )
+        try:
+            advance_day_session(
+                db,
+                recording,
+                session,
+                fixture_root=request.app.state.settings.fixture_root,
+                blob_store=request.app.state.blob_store,
+                speech=request.app.state.speech_adapter,
+                llm=request.app.state.llm_adapter,
+                settings=request.app.state.settings,
+            )
+        except StaleGeneration as error:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(error)) from error
         db.commit()
     return day_session_payload(db, recording, session, request.app.state.settings.fixture_root)
 
@@ -80,9 +90,18 @@ def ask_day(
             payload.question,
             through_batch_index=payload.batch_index,
             fixture_root=request.app.state.settings.fixture_root,
+            llm=request.app.state.llm_adapter,
+            settings=request.app.state.settings,
         )
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    except (BudgetExceeded, BudgetReservationUnavailable) as error:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": getattr(error, "code", "budget_unavailable"), "message": str(error)},
+        ) from error
+    except ProviderUnavailable as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     db.commit()
     return message
 
