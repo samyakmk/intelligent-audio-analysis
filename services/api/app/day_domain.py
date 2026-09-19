@@ -12,7 +12,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from .blobstore import BlobAlreadyExists, BlobStore
-from .day_fixture import choose_batch_boundaries, find_day_fixture, split_wav
+from .day_fixture import (
+    analyze_wav_activity,
+    choose_batch_boundaries,
+    find_day_fixture,
+    split_wav,
+)
 from .domain import (
     BudgetExceeded,
     BudgetReservationUnavailable,
@@ -47,6 +52,7 @@ from .providers import (
     LLMAdapter,
     ProviderBilledFailure,
     ProviderUnavailable,
+    SegmentFilterRequest,
     SpeechAdapter,
     SpeechRequest,
 )
@@ -274,8 +280,10 @@ def day_session_payload(
                 "index_state": item.index_state or {},
                 "pending_changes": item.pending_changes or [],
                 "published_snapshot": item.published_snapshot or {},
+                "audio_filter": (item.source_payload or {}).get("audio_filter"),
                 "provider": {
                     "speech": (item.source_payload or {}).get("speech_provenance"),
+                    "filter": (item.source_payload or {}).get("filter_provenance"),
                     "intelligence": (item.source_payload or {}).get(
                         "intelligence_provenance"
                     ),
@@ -718,6 +726,132 @@ def _dispatch_day_speech(
     batch.source_payload = {**(batch.source_payload or {}), "speech_provenance": provenance}
 
 
+def _dispatch_day_filter(
+    db: Session,
+    llm: LLMAdapter,
+    settings: Any,
+    recording: Recording,
+    session: DaySession,
+    batch: DayBatch,
+) -> None:
+    expected_generation = int((batch.source_payload or {}).get("attempt_generation", 0))
+    previous = db.scalar(
+        select(DayBatch).where(
+            DayBatch.day_session_id == session.id,
+            DayBatch.batch_index == batch.batch_index - 1,
+        )
+    )
+    prior_context = (previous.transcript or [])[-2:] if previous else []
+    attempt_id = _day_attempt_id("filter", session, batch)
+    request = SegmentFilterRequest(
+        recording_id=recording.id,
+        transcript_version=batch.batch_index + 1,
+        prior_context=prior_context,
+        segments=list(batch.transcript or []),
+        request_id=attempt_id,
+        budget_usd=settings.recording_cost_ceiling_usd,
+    )
+    estimate = llm.estimate_filter_reservation(request)
+    reserve_budget(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_filter",
+        amount_usd=estimate,
+        per_request_cap_usd=settings.recording_cost_ceiling_usd,
+        recording_cap_usd=settings.recording_cost_ceiling_usd,
+    )
+    mark_budget_dispatched(db, attempt_id=attempt_id)
+    db.commit()
+    try:
+        result = llm.filter_segments(request)
+    except Exception as failure:
+        db.rollback()
+        if isinstance(failure, ProviderBilledFailure):
+            _ledger_billed_failure(
+                db,
+                failure,
+                workspace_id=recording.workspace_id,
+                recording_id=recording.id,
+                stage="day_filter",
+            )
+        else:
+            settle_interrupted_budget(
+                db,
+                attempt_id=attempt_id,
+                provider_dispatched=True,
+                reason="day_filter_provider_failure",
+            )
+        db.commit()
+        raise
+    provenance = result.provenance
+    actual = _provider_actual_cost(provenance, provenance.get("usage", {}))
+    _cost_once(
+        db,
+        attempt_id=attempt_id,
+        workspace_id=recording.workspace_id,
+        recording_id=recording.id,
+        stage="day_filter",
+        provider=provenance["provider"],
+        model_alias=provenance["model_alias"],
+        resolved_model=provenance["resolved_model"],
+        usage=provenance.get("usage", {}),
+        estimated=actual,
+        provenance=provenance,
+    )
+    commit_budget(db, attempt_id=attempt_id, actual_usd=actual)
+    db.expire_all()
+    current_recording = db.get(Recording, recording.id)
+    current_session = db.get(DaySession, session.id)
+    current_batch = db.get(DayBatch, batch.id)
+    if (
+        current_recording is None
+        or current_recording.deleted_at is not None
+        or current_session is None
+        or current_batch is None
+        or current_batch.stage != "indexing"
+        or int((current_batch.source_payload or {}).get("attempt_generation", 0))
+        != expected_generation
+    ):
+        db.commit()
+        raise StaleGeneration("The day session changed while Gemini was filtering it")
+    _set_filter_state(current_batch, result.decisions, provenance)
+
+
+def _set_filter_state(
+    batch: DayBatch,
+    decisions: list[dict[str, Any]],
+    provenance: dict[str, Any],
+) -> None:
+    selected_ids = [
+        str(item["segment_id"]) for item in decisions if item.get("keep") is True
+    ]
+    terms = {
+        term
+        for item in batch.transcript or []
+        if item["id"] in selected_ids
+        for term in re.findall(r"[a-z0-9]+", item["text"].casefold())
+        if len(term) > 3
+    }
+    batch.source_payload = {
+        **(batch.source_payload or {}),
+        "filter_decisions": decisions,
+        "selected_segment_ids": selected_ids,
+        "filter_provenance": provenance,
+    }
+    batch.index_state = {
+        "transcript_segments": len(batch.transcript or []),
+        "selected_segments": len(selected_ids),
+        "excluded_segments": len(batch.transcript or []) - len(selected_ids),
+        "evidence_chunks": len(selected_ids),
+        "lexical_terms": len(terms),
+        "vector_embeddings": len(selected_ids),
+        "neighbor_links": max(0, len(selected_ids) - 1) * 2,
+        "filter_decisions": decisions,
+    }
+
+
 def _memory_projection(
     prior_memory: dict[str, Any],
     payload: dict[str, Any],
@@ -818,18 +952,22 @@ def _dispatch_day_intelligence(
     batch: DayBatch,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     expected_generation = int((batch.source_payload or {}).get("attempt_generation", 0))
-    segments = [
-        segment
-        for prior in db.scalars(
-            select(DayBatch)
-            .where(
-                DayBatch.day_session_id == session.id,
-                DayBatch.batch_index <= batch.batch_index,
-            )
-            .order_by(DayBatch.batch_index)
-        ).all()
-        for segment in (prior.transcript or [])
-    ]
+    segments = []
+    for prior in db.scalars(
+        select(DayBatch)
+        .where(
+            DayBatch.day_session_id == session.id,
+            DayBatch.batch_index <= batch.batch_index,
+        )
+        .order_by(DayBatch.batch_index)
+    ).all():
+        source = prior.source_payload or {}
+        selected = set(source.get("selected_segment_ids", []))
+        segments.extend(
+            segment
+            for segment in (prior.transcript or [])
+            if segment["id"] in selected
+        )
     attempt_id = _day_attempt_id("intelligence", session, batch)
     estimate = llm.estimate_intelligence_reservation(
         recording_id=recording.id,
@@ -980,9 +1118,19 @@ def advance_day_session(
 
     if batch.stage == "waiting":
         if gemini_enabled:
+            audio_bytes = blob_store.get(batch.blob_key) if batch.blob_key else b""
+            audio_filter = analyze_wav_activity(audio_bytes)
+            batch.source_payload = {
+                **(batch.source_payload or {}),
+                "audio_filter": audio_filter,
+            }
             batch.stage = "transcribing"
             session.current_stage = "transcribing"
             session.revision += 1
+            if audio_filter["decision"] == "skip_clear_silence":
+                batch.transcript = []
+                db.commit()
+                return
             try:
                 _dispatch_day_speech(
                     db, blob_store, speech, settings, recording, session, batch
@@ -1024,6 +1172,66 @@ def advance_day_session(
         batch.stage = "reconciling"
         session.current_stage = "reconciling"
     elif batch.stage == "reconciling":
+        if gemini_enabled:
+            batch.stage = "indexing"
+            session.current_stage = "indexing"
+            session.revision += 1
+            if not batch.transcript:
+                batch.source_payload = {
+                    **(batch.source_payload or {}),
+                    "filter_decisions": [],
+                    "selected_segment_ids": [],
+                    "filter_provenance": {
+                        "provider": "local.audio-activity",
+                        "model_alias": "filter.no-transcript",
+                        "resolved_model": "clear-silence-bypass-v1",
+                        "usage": {"input_tokens": 0, "output_tokens": 0},
+                        "estimated_cost_usd": 0.0,
+                    },
+                }
+                batch.index_state = {
+                    "transcript_segments": 0,
+                    "selected_segments": 0,
+                    "excluded_segments": 0,
+                    "evidence_chunks": 0,
+                    "lexical_terms": 0,
+                    "vector_embeddings": 0,
+                    "neighbor_links": 0,
+                    "filter_decisions": [],
+                }
+                db.commit()
+                return
+            try:
+                _dispatch_day_filter(db, llm, settings, recording, session, batch)
+                db.commit()
+            except (ProviderUnavailable, BudgetExceeded, BudgetReservationUnavailable) as error:
+                decisions = [
+                    {
+                        "segment_id": segment["id"],
+                        "keep": True,
+                        "category": "fail-open",
+                        "reason": "Triage was unavailable; retained by conservative policy.",
+                        "confidence": 1.0,
+                    }
+                    for segment in batch.transcript or []
+                ]
+                _set_filter_state(
+                    batch,
+                    decisions,
+                    {
+                        "provider": "local.conservative",
+                        "model_alias": "filter.fail-open",
+                        "resolved_model": "keep-all-v1",
+                        "usage": {"input_tokens": 0, "output_tokens": 0},
+                        "estimated_cost_usd": 0.0,
+                        "fallback_reason": getattr(
+                            error, "code", "provider_unavailable"
+                        ),
+                    },
+                )
+                db.commit()
+                return
+            return
         terms = {
             term
             for item in batch.transcript or []
@@ -1031,10 +1239,14 @@ def advance_day_session(
             if len(term) > 3
         }
         batch.index_state = {
+            "transcript_segments": len(batch.transcript or []),
+            "selected_segments": len(batch.transcript or []),
+            "excluded_segments": 0,
             "evidence_chunks": len(batch.transcript or []),
             "lexical_terms": len(terms),
             "vector_embeddings": len(batch.transcript or []),
             "neighbor_links": max(0, len(batch.transcript or []) - 1) * 2,
+            "filter_decisions": [],
         }
         batch.stage = "indexing"
         session.current_stage = "indexing"
@@ -1043,6 +1255,16 @@ def advance_day_session(
             batch.stage = "extracting"
             session.current_stage = "extracting"
             session.revision += 1
+            if not (batch.source_payload or {}).get("selected_segment_ids"):
+                batch.pending_changes = []
+                batch.source_payload = {
+                    **(batch.source_payload or {}),
+                    "proposed_memory": json.loads(
+                        json.dumps(session.memory_state or empty_memory())
+                    ),
+                }
+                db.commit()
+                return
             try:
                 proposed_memory, proposed_changes = _dispatch_day_intelligence(
                     db, llm, settings, recording, session, batch
@@ -1198,6 +1420,60 @@ def _dispatch_day_ask(
     return result.answer, result.citations, result.abstained
 
 
+def _ask_evidence_segments(
+    question: str,
+    batches: list[DayBatch],
+    *,
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    """Retrieve from the full transcript, then backfill with triage-kept recency."""
+
+    all_segments = [segment for batch in batches for segment in (batch.transcript or [])]
+    selected_ids = {
+        str(segment_id)
+        for batch in batches
+        for segment_id in (batch.source_payload or {}).get("selected_segment_ids", [])
+    }
+    query_terms = {
+        term
+        for term in re.findall(r"[a-z0-9]+", question.casefold())
+        if len(term) > 2
+    }
+    ranked = sorted(
+        all_segments,
+        key=lambda segment: (
+            len(
+                query_terms
+                & set(re.findall(r"[a-z0-9]+", segment["text"].casefold()))
+            ),
+            segment["id"] in selected_ids,
+            int(segment["end_ms"]),
+        ),
+        reverse=True,
+    )
+    relevant = [
+        segment
+        for segment in ranked
+        if query_terms
+        & set(re.findall(r"[a-z0-9]+", segment["text"].casefold()))
+    ]
+    candidates = [
+        *relevant,
+        *[segment for segment in reversed(all_segments) if segment["id"] in selected_ids],
+        *reversed(all_segments),
+    ]
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for segment in candidates:
+        if segment["id"] in seen:
+            continue
+        seen.add(segment["id"])
+        result.append(segment)
+        if len(result) >= limit:
+            break
+    return result
+
+
 def answer_day_question(
     db: Session,
     recording: Recording,
@@ -1227,8 +1503,9 @@ def answer_day_question(
     provisional = watermark_ms < (recording.duration_ms or watermark_ms)
     strategy = "lexical_evidence"
     if session.pipeline_version == "day-memory-gemini.v1" and processed_segments:
+        ask_segments = _ask_evidence_segments(question, selected_batches)
         answer, citations, abstained = _dispatch_day_ask(
-            db, llm, settings, recording, question, processed_segments
+            db, llm, settings, recording, question, ask_segments
         )
         strategy = "gemini_grounded_day_snapshot"
         if abstained:

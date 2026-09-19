@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import math
 import wave
 from pathlib import Path
 from typing import Any
@@ -91,3 +92,88 @@ def split_wav(source: bytes, boundaries_ms: list[int]) -> list[bytes]:
             writer.writeframes(part)
         results.append(output.getvalue())
     return results
+
+
+def analyze_wav_activity(source: bytes) -> dict[str, Any]:
+    """Conservatively identify only clear PCM silence before paid transcription.
+
+    Unsupported encodings pass through. The gate intentionally tolerates noise and
+    quiet speech because a false positive costs less than a missed work event.
+    """
+
+    try:
+        with wave.open(io.BytesIO(source), "rb") as audio:
+            if audio.getcomptype() != "NONE" or audio.getsampwidth() not in {1, 2}:
+                raise ValueError("unsupported PCM shape")
+            sample_width = audio.getsampwidth()
+            channels = audio.getnchannels()
+            sample_rate = audio.getframerate()
+            frame_width = channels * sample_width
+            window_frames = max(1, sample_rate // 50)
+            sample_count = 0
+            sum_squares = 0
+            peak = 0
+            frame_rms: list[float] = []
+            while True:
+                raw = audio.readframes(window_frames)
+                if not raw:
+                    break
+                if sample_width == 1:
+                    values = [abs(value - 128) for value in raw]
+                else:
+                    usable = len(raw) - (len(raw) % frame_width)
+                    values = [
+                        abs(
+                            int.from_bytes(
+                                raw[index : index + 2], "little", signed=True
+                            )
+                        )
+                        for index in range(0, usable, 2)
+                    ]
+                if not values:
+                    continue
+                frame_sum = sum(value * value for value in values)
+                sample_count += len(values)
+                sum_squares += frame_sum
+                peak = max(peak, max(values))
+                frame_rms.append(math.sqrt(frame_sum / len(values)))
+    except (EOFError, ValueError, wave.Error):
+        return {
+            "decision": "pass_uncertain",
+            "reason": "Audio activity could not be measured safely; retained by default.",
+            "active_frame_ratio": None,
+            "rms": None,
+            "peak": None,
+        }
+
+    if sample_count == 0 or sample_rate <= 0 or channels <= 0:
+        return {
+            "decision": "skip_clear_silence",
+            "reason": "The batch contains no PCM samples.",
+            "active_frame_ratio": 0.0,
+            "rms": 0,
+            "peak": 0,
+        }
+
+    scale = 128 if sample_width == 1 else 32_768
+    rms = round(math.sqrt(sum_squares / sample_count))
+    active_threshold = max(96 * scale / 32_768, peak * 0.025)
+    active_ratio = (
+        sum(value >= active_threshold for value in frame_rms) / len(frame_rms)
+        if frame_rms
+        else 0.0
+    )
+    clear_silence = peak <= 64 * scale / 32_768 or (
+        rms <= 96 * scale / 32_768 and active_ratio < 0.01
+    )
+    return {
+        "decision": "skip_clear_silence" if clear_silence else "pass_to_speech",
+        "reason": (
+            "Only clear near-silence was detected; paid transcription is bypassed."
+            if clear_silence
+            else "Possible speech or meaningful sound was detected; the batch is retained."
+        ),
+        "active_frame_ratio": round(active_ratio, 4),
+        "rms": rms,
+        "peak": peak,
+    }

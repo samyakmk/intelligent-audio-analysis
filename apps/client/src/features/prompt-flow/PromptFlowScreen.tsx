@@ -10,6 +10,7 @@ import { colors, font, radius, shadowNone, spacing } from '@/theme';
 type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 type NodeTone = 'neutral' | 'strong' | 'cheap' | 'code' | 'output';
 type ApproachKey = 'naive' | 'middle' | 'optimized';
+type WorkflowKey = 'recording' | 'continuous';
 
 const mobileApproaches: { key: ApproachKey; label: string; cost: string }[] = [
   { key: 'naive', label: 'Naive', cost: 'HIGH' },
@@ -23,18 +24,35 @@ export default function PromptFlowScreen() {
   const stacked = width < 1040;
   const phone = width < 680;
   const [mobileApproach, setMobileApproach] = useState<ApproachKey>('optimized');
+  const [workflow, setWorkflow] = useState<WorkflowKey>('recording');
 
   return (
     <AppShell>
       <View style={styles.intro}>
-        <Text style={styles.eyebrow}>ARCHITECTURE COMPARISON</Text>
+        <Text style={styles.eyebrow}>PROMPT FLOW &amp; SYSTEM DESIGN</Text>
         <PageTitle
-          title="Three ways to turn audio into useful output"
-          subtitle="Compare what each approach sends to a model, how much work it repeats, and where stronger reasoning is actually used."
+          title={workflow === 'recording' ? 'Single-recording workflow' : 'Continuous-day workflow'}
+          subtitle={workflow === 'recording' ? 'Compare what each approach sends to a model, how much work it repeats, and where stronger reasoning is actually used.' : 'See exactly how each arriving batch is filtered, reconciled, folded into temporal memory, and exposed to Ask.'}
           action={<Button icon="play" onPress={() => router.push('/')}>Try it</Button>}
         />
       </View>
 
+      <View style={styles.workflowPicker} accessibilityRole="tablist">
+        {([
+          ['recording', 'Single recording', 'One bounded meeting or clip'],
+          ['continuous', 'Continuous day', 'Sequential batches + evolving memory'],
+        ] as const).map(([key, label, detail]) => {
+          const selected = workflow === key;
+          return (
+            <Pressable key={key} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => setWorkflow(key)} style={[styles.workflowTab, selected && styles.workflowTabSelected]}>
+              <Text style={[styles.workflowLabel, selected && styles.workflowLabelSelected]}>{label}</Text>
+              <Text style={[styles.workflowDetail, selected && styles.workflowDetailSelected]}>{detail}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {workflow === 'recording' ? <>
       {phone ? (
         <View style={styles.mobilePicker}>
           <View style={styles.mobilePickerHeader}>
@@ -160,8 +178,59 @@ export default function PromptFlowScreen() {
           <Text style={styles.takeawayBody}>The optimized pipeline pays for broad context once, keeps deterministic work in code, and buys stronger reasoning only for the small fraction of output that fails validation.</Text>
         </View>
       </Card>
+      </> : <ContinuousDayFlow phone={phone} />}
     </AppShell>
   );
+}
+
+function ContinuousDayFlow({ phone }: { phone: boolean }) {
+  const stages: { icon: IconName; title: string; detail: string; tone: NodeTone; side?: string }[] = [
+    { icon: 'clock-fast', title: 'One immutable batch arrives', detail: 'Only the current slice is visible. Future audio cannot leak backward.', tone: 'neutral', side: 'watermark advances only after publish' },
+    { icon: 'waveform', title: 'Conservative audio activity gate', detail: 'Local PCM analysis skips only clear near-silence. Ambiguous sound passes.', tone: 'code', side: 'saves speech calls without risking quiet speech' },
+    { icon: 'text-box-outline', title: 'Gemini transcription', detail: 'The arriving batch becomes a full timestamped transcript; raw text is retained.', tone: 'cheap', side: 'one metered call for this batch only' },
+    { icon: 'filter-variant', title: 'High-recall Gemini triage', detail: 'Keep decisions, tasks, corrections, risks, metrics, questions, and uncertain context.', tone: 'cheap', side: 'drop only obvious filler or unrelated chatter' },
+    { icon: 'vector-link', title: 'Reconcile with prior tail', detail: 'Carry speaker and boundary context; retain exact source IDs and timestamps.', tone: 'code', side: 'future batches may revise, never rewrite evidence' },
+    { icon: 'source-merge', title: 'Cumulative memory synthesis', detail: 'Send previously kept evidence plus this batch’s kept segments—not the whole day.', tone: 'strong', side: 'add, supersede, and resolve temporal facts' },
+    { icon: 'database-check-outline', title: 'Atomic snapshot publish', detail: 'Transcript, index, memory, revision log, and Ask watermark become visible together.', tone: 'output', side: 'historical batch snapshots remain selectable' },
+  ];
+  return (
+    <View style={styles.dayFlow}>
+      <Card style={styles.dayDiagramCard}>
+        <View style={styles.dayHeader}>
+          <View style={styles.dayHeaderCopy}><Text style={styles.dayKicker}>PER-BATCH CRITICAL PATH</Text><Text style={styles.dayTitle}>Process completely before the next batch arrives</Text></View>
+          <View style={styles.highRecallBadge}><MaterialCommunityIcons name="shield-check-outline" size={15} color={colors.green} /><Text style={styles.highRecallText}>FALSE-NEGATIVE AVERSE</Text></View>
+        </View>
+        <View style={styles.dayPipeline}>
+          {stages.map((stage, index) => (
+            <View key={stage.title}>
+              <View style={[styles.dayStageRow, phone && styles.dayStageRowPhone]}>
+                <View style={styles.dayStageNumber}><Text style={styles.dayStageNumberText}>{index + 1}</Text></View>
+                <View style={styles.dayStageNode}><PipelineNode icon={stage.icon} title={stage.title} detail={stage.detail} tone={stage.tone} compact /></View>
+                <Text style={[styles.dayStageSide, phone && styles.dayStageSidePhone]}>{stage.side}</Text>
+              </View>
+              {index < stages.length - 1 ? <View style={styles.dayConnector}><View style={styles.dayConnectorLine} /><MaterialCommunityIcons name="arrow-down" size={15} color={colors.borderStrong} /></View> : null}
+            </View>
+          ))}
+        </View>
+      </Card>
+
+      <View style={[styles.decisionGrid, phone && styles.decisionGridPhone]}>
+        <DecisionCard icon="archive-lock-outline" title="Keep the source" body="Filtering never deletes audio or transcript. Ask can retrieve omitted text when a later question makes it relevant." />
+        <DecisionCard icon="timeline-clock-outline" title="Fence by watermark" body="Every snapshot and Ask answer sees only published batches through the selected point in time." />
+        <DecisionCard icon="refresh-circle" title="Let the future revise" body="Later evidence can supersede provisional decisions while the revision log preserves what changed and why." />
+        <DecisionCard icon="cash-check" title="Meter every remote step" body="Speech, triage, synthesis, and Ask each use stable attempts, budget reservations, provenance, and stale-generation checks." />
+      </View>
+
+      <Card style={styles.askArchitecture}>
+        <View style={styles.askArchitectureIcon}><MaterialCommunityIcons name="message-question-outline" size={24} color={colors.white} /></View>
+        <View style={styles.takeawayCopy}><Text style={styles.takeawayKicker}>ASK IS A SEPARATE RETRIEVAL PATH</Text><Text style={styles.takeawayTitle}>Memory stays compact; questions can still reach the full retained transcript.</Text><Text style={styles.takeawayBody}>Ask ranks matching text across every published segment—including content excluded from recurring synthesis—then adds recent high-salience evidence and sends a bounded, cited context to Gemini.</Text></View>
+      </Card>
+    </View>
+  );
+}
+
+function DecisionCard({ icon, title, body }: { icon: IconName; title: string; body: string }) {
+  return <Card style={styles.decisionCard}><View style={styles.decisionIcon}><MaterialCommunityIcons name={icon} size={20} color={colors.pine} /></View><View style={styles.decisionCopy}><Text style={styles.decisionTitle}>{title}</Text><Text style={styles.decisionBody}>{body}</Text></View></Card>;
 }
 
 function ApproachCard({
@@ -283,6 +352,40 @@ function OutputCluster({ compact = false }: { compact?: boolean }) {
 const styles = StyleSheet.create({
   intro: { gap: spacing.sm },
   eyebrow: { color: colors.coralDark, fontFamily: font.medium, fontSize: 9, letterSpacing: 1.2 },
+  workflowPicker: { flexDirection: 'row', alignSelf: 'stretch', flexWrap: 'wrap', gap: spacing.xs, padding: spacing.xs, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, backgroundColor: colors.surfaceMuted },
+  workflowTab: { flexGrow: 1, minWidth: 150, gap: 2, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.md },
+  workflowTabSelected: { backgroundColor: colors.pine },
+  workflowLabel: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 11 },
+  workflowLabelSelected: { color: colors.white },
+  workflowDetail: { color: colors.inkFaint, fontSize: 8 },
+  workflowDetailSelected: { color: '#C8DDD6' },
+  dayFlow: { gap: spacing.lg },
+  dayDiagramCard: { gap: spacing.xl, padding: spacing.xl, ...shadowNone },
+  dayHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.lg, flexWrap: 'wrap' },
+  dayHeaderCopy: { flex: 1, minWidth: 220, gap: 3 },
+  dayKicker: { color: colors.coralDark, fontFamily: font.medium, fontSize: 8, letterSpacing: 1 },
+  dayTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 18 },
+  highRecallBadge: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.pill, backgroundColor: colors.greenSoft },
+  highRecallText: { color: colors.green, fontFamily: font.mono, fontSize: 7, letterSpacing: 0.5 },
+  dayPipeline: { maxWidth: 860, width: '100%', alignSelf: 'center' },
+  dayStageRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  dayStageRowPhone: { alignItems: 'flex-start', flexWrap: 'wrap' },
+  dayStageNumber: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: colors.pine },
+  dayStageNumberText: { color: colors.white, fontFamily: font.mono, fontSize: 9 },
+  dayStageNode: { flex: 1, minWidth: 240 },
+  dayStageSide: { width: 190, color: colors.inkMuted, fontSize: 8, lineHeight: 12 },
+  dayStageSidePhone: { width: '100%', paddingLeft: 44 },
+  dayConnector: { height: 22, marginLeft: 13, alignItems: 'flex-start', justifyContent: 'center' },
+  dayConnectorLine: { position: 'absolute', left: 0, top: 0, bottom: 5, width: 1, backgroundColor: colors.borderStrong },
+  decisionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
+  decisionGridPhone: { flexDirection: 'column' },
+  decisionCard: { width: '48%', flexGrow: 1, minWidth: 260, flexDirection: 'row', gap: spacing.md, padding: spacing.lg, ...shadowNone },
+  decisionIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.pineSoft },
+  decisionCopy: { flex: 1, gap: 4 },
+  decisionTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 11 },
+  decisionBody: { color: colors.inkMuted, fontSize: 9, lineHeight: 14 },
+  askArchitecture: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, backgroundColor: colors.pine, borderColor: colors.pine, ...shadowNone },
+  askArchitectureIcon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.12)' },
   comparisonGrid: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.lg },
   comparisonGridStacked: { flexDirection: 'column' },
   comparisonGridPhone: { gap: 0 },

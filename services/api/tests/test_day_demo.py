@@ -1,24 +1,80 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import wave
 from dataclasses import replace
 
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
+from app.day_domain import _ask_evidence_segments
+from app.day_fixture import analyze_wav_activity
 from app.main import create_app
 from app.models import CostEvent, DayBatch, DaySession, MediaObject
 from app.providers import (
     AskRequest,
     AskResult,
     LLMAdapter,
+    ProviderUnavailable,
+    SegmentFilterRequest,
+    SegmentFilterResult,
     SpeechAdapter,
     SpeechRequest,
     SpeechResult,
 )
 
 from .conftest import FIXTURE_ROOT, login, mutation_headers
+
+
+def _pcm_wav(sample: int, *, frames: int = 16_000) -> bytes:
+    output = io.BytesIO()
+    with wave.open(output, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(16_000)
+        audio.writeframes(sample.to_bytes(2, "little", signed=True) * frames)
+    return output.getvalue()
+
+
+def test_audio_activity_gate_skips_only_clear_silence() -> None:
+    silence = analyze_wav_activity(_pcm_wav(0))
+    quiet_signal = analyze_wav_activity(_pcm_wav(200))
+    uncertain = analyze_wav_activity(b"not-a-wave")
+
+    assert silence["decision"] == "skip_clear_silence"
+    assert quiet_signal["decision"] == "pass_to_speech"
+    assert uncertain["decision"] == "pass_uncertain"
+
+
+def test_ask_retrieval_can_recover_a_triage_dropped_segment() -> None:
+    dropped = {
+        "id": "dropped",
+        "text": "The zebra account needs a follow-up.",
+        "start_ms": 0,
+        "end_ms": 1_000,
+    }
+    selected = {
+        "id": "selected",
+        "text": "The launch plan changed.",
+        "start_ms": 1_000,
+        "end_ms": 2_000,
+    }
+    batch = DayBatch(
+        id="batch",
+        day_session_id="session",
+        recording_id="recording",
+        batch_index=0,
+        start_ms=0,
+        end_ms=2_000,
+        transcript=[dropped, selected],
+        source_payload={"selected_segment_ids": ["selected"]},
+    )
+
+    evidence = _ask_evidence_segments("What happened with the zebra account?", [batch])
+
+    assert evidence[0]["id"] == "dropped"
 
 
 def load_day_audio(fixture_id: str = "atlas-launch-day") -> tuple[dict, bytes]:
@@ -69,6 +125,47 @@ def upload_day(
     assert complete.status_code == 202, complete.text
     assert complete.json()["experience"] == "day_demo"
     return upload["recording_id"], complete.json()
+
+
+def upload_day_bytes(
+    client: TestClient,
+    csrf: str,
+    data: bytes,
+    *,
+    batch_count: int = 3,
+) -> str:
+    digest = hashlib.sha256(data).hexdigest()
+    create = client.post(
+        "/v1/upload-sessions",
+        json={
+            "filename": "synthetic-silence.wav",
+            "content_type": "audio/wav",
+            "size_bytes": len(data),
+            "sha256": digest,
+            "language": "en",
+            "vocabulary_hints": [],
+            "mode": "standard",
+            "provider_data_approved": True,
+            "experience": "day_demo",
+            "batch_count": batch_count,
+        },
+        headers=mutation_headers(csrf, "silence-create"),
+    )
+    assert create.status_code == 201, create.text
+    upload = create.json()
+    assert (
+        client.put(
+            upload["upload_url"], content=data, headers=upload["upload_headers"]
+        ).status_code
+        == 204
+    )
+    complete = client.post(
+        f"/v1/recordings/{upload['recording_id']}/complete",
+        json={"upload_session_id": upload["id"], "sha256": digest},
+        headers=mutation_headers(csrf, "silence-complete"),
+    )
+    assert complete.status_code == 202, complete.text
+    return str(upload["recording_id"])
 
 
 def advance(client: TestClient, csrf: str, recording_id: str, state: dict) -> dict:
@@ -338,6 +435,32 @@ class _GeminiLLMStub(LLMAdapter):
     def __init__(self) -> None:
         self.intelligence_calls = 0
         self.ask_calls = 0
+        self.filter_calls = 0
+
+    def estimate_filter_reservation(self, request: SegmentFilterRequest) -> float:
+        return 0.01
+
+    def filter_segments(self, request: SegmentFilterRequest) -> SegmentFilterResult:
+        self.filter_calls += 1
+        return SegmentFilterResult(
+            decisions=[
+                {
+                    "segment_id": segment["id"],
+                    "keep": True,
+                    "category": "decision",
+                    "reason": "Potential launch decision.",
+                    "confidence": 0.97,
+                }
+                for segment in request.segments
+            ],
+            provenance={
+                "provider": "google.gemini",
+                "model_alias": "llm.cheap",
+                "resolved_model": "gemini-test-filter",
+                "usage": {"input_tokens": 40, "output_tokens": 20},
+                "estimated_cost_usd": 0.001,
+            },
+        )
 
     def estimate_intelligence_reservation(self, **_: object) -> float:
         return 0.01
@@ -398,6 +521,12 @@ class _GeminiLLMStub(LLMAdapter):
         )
 
 
+class _FailingFilterLLMStub(_GeminiLLMStub):
+    def filter_segments(self, request: SegmentFilterRequest) -> SegmentFilterResult:
+        self.filter_calls += 1
+        raise ProviderUnavailable("Synthetic triage outage")
+
+
 def test_day_gemini_mode_dispatches_metered_batch_and_ask_calls(settings) -> None:
     gemini_settings = replace(
         settings,
@@ -436,7 +565,9 @@ def test_day_gemini_mode_dispatches_metered_batch_and_ask_calls(settings) -> Non
         assert state["processed_batch_count"] == 1
         assert len(speech.requests) == 1
         assert llm.intelligence_calls == 1
+        assert llm.filter_calls == 1
         assert state["batches"][0]["provider"]["speech"]["provider"] == "google.gemini"
+        assert state["batches"][0]["provider"]["filter"]["provider"] == "google.gemini"
         assert state["batches"][0]["provider"]["intelligence"]["provider"] == "google.gemini"
         response = gemini_client.post(
             f"/v1/day-sessions/{recording_id}/ask",
@@ -462,7 +593,81 @@ def test_day_gemini_mode_dispatches_metered_batch_and_ask_calls(settings) -> Non
             ).all()
             assert {event.stage for event in events} == {
                 "day_speech",
+                "day_filter",
                 "day_intelligence",
                 "day_ask",
             }
             assert all(event.provider == "google.gemini" for event in events)
+
+
+def test_day_filter_failure_keeps_all_segments_and_continues(settings) -> None:
+    gemini_settings = replace(
+        settings,
+        provider_mode="gemini",
+        allow_remote_provider_calls=True,
+        gemini_api_key="test-only-gemini-key",
+        seed_demo_recordings=False,
+    )
+    app = create_app(gemini_settings)
+    app.state.speech_adapter = _GeminiSpeechStub()
+    app.state.llm_adapter = _FailingFilterLLMStub()
+    with TestClient(app, base_url="http://testserver") as gemini_client:
+        csrf, _ = login(gemini_client)
+        recording_id, _ = upload_day(
+            gemini_client,
+            csrf,
+            provider_data_approved=True,
+        )
+        state = gemini_client.get(f"/v1/day-sessions/{recording_id}").json()
+        for _ in range(3):
+            state = advance(gemini_client, csrf, recording_id, state)
+
+        batch = state["batches"][0]
+        assert state["status"] == "processing"
+        assert batch["provider"]["filter"]["provider"] == "local.conservative"
+        assert batch["index_state"]["selected_segments"] == len(batch["transcript"])
+        assert batch["index_state"]["filter_decisions"][0]["category"] == "fail-open"
+
+        state = advance(gemini_client, csrf, recording_id, state)
+        assert state["current_stage"] == "extracting"
+
+
+def test_day_gemini_mode_bypasses_remote_calls_for_clear_silence(settings) -> None:
+    gemini_settings = replace(
+        settings,
+        provider_mode="gemini",
+        allow_remote_provider_calls=True,
+        gemini_api_key="test-only-gemini-key",
+        seed_demo_recordings=False,
+    )
+    speech = _GeminiSpeechStub()
+    llm = _GeminiLLMStub()
+    app = create_app(gemini_settings)
+    app.state.speech_adapter = speech
+    app.state.llm_adapter = llm
+    with TestClient(app, base_url="http://testserver") as gemini_client:
+        csrf, _ = login(gemini_client)
+        recording_id = upload_day_bytes(
+            gemini_client,
+            csrf,
+            _pcm_wav(0, frames=16_000 * 6),
+        )
+        state = gemini_client.get(f"/v1/day-sessions/{recording_id}").json()
+        for _ in range(5):
+            state = advance(gemini_client, csrf, recording_id, state)
+
+        batch = state["batches"][0]
+        assert state["processed_batch_count"] == 1
+        assert batch["audio_filter"]["decision"] == "skip_clear_silence"
+        assert batch["transcript"] == []
+        assert batch["index_state"]["selected_segments"] == 0
+        assert batch["published_snapshot"] == state["memory"]
+        assert speech.requests == []
+        assert llm.filter_calls == 0
+        assert llm.intelligence_calls == 0
+        with app.state.database.session_factory() as db:
+            assert db.scalar(
+                select(func.count(CostEvent.id)).where(
+                    CostEvent.recording_id == recording_id
+                )
+            ) == 0

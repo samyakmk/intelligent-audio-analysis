@@ -101,6 +101,22 @@ class AskResult:
     provenance: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class SegmentFilterRequest:
+    recording_id: str
+    transcript_version: int
+    prior_context: list[dict[str, Any]]
+    segments: list[dict[str, Any]]
+    request_id: str
+    budget_usd: float
+
+
+@dataclass(frozen=True, slots=True)
+class SegmentFilterResult:
+    decisions: list[dict[str, Any]]
+    provenance: dict[str, Any]
+
+
 class LLMAdapter(ABC):
     @abstractmethod
     def extract_intelligence(
@@ -129,6 +145,32 @@ class LLMAdapter(ABC):
         return 0.0
 
     def estimate_ask_reservation(self, request: AskRequest) -> float:
+        return 0.0
+
+    def filter_segments(self, request: SegmentFilterRequest) -> SegmentFilterResult:
+        """Conservative default: keep everything when no triage provider exists."""
+
+        return SegmentFilterResult(
+            decisions=[
+                {
+                    "segment_id": str(segment["id"]),
+                    "keep": True,
+                    "category": "unfiltered",
+                    "reason": "No remote triage adapter is configured; retained by default.",
+                    "confidence": 1.0,
+                }
+                for segment in request.segments
+            ],
+            provenance={
+                "provider": "local.conservative",
+                "model_alias": "filter.keep-all",
+                "resolved_model": "keep-all-v1",
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+                "estimated_cost_usd": 0.0,
+            },
+        )
+
+    def estimate_filter_reservation(self, request: SegmentFilterRequest) -> float:
         return 0.0
 
 

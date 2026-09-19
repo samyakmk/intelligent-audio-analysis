@@ -425,11 +425,25 @@ function BatchCard({ batch, active, selected, onSelect }: { batch: DayBatch; act
 
 function BatchOutput({ batch }: { batch: DayBatch }) {
   const speechProvider = batch.provider?.speech;
+  const filterProvider = batch.provider?.filter;
   const intelligenceProvider = batch.provider?.intelligence;
+  const kept = batch.index_state.selected_segments ?? 0;
+  const total = batch.index_state.transcript_segments ?? batch.transcript.length;
   return (
     <View style={styles.outputStack}>
+      {batch.audio_filter ? (
+        <OutputBlock icon="waveform" title="1 · Conservative audio gate" complete>
+          <Text style={styles.outputText}>{batch.audio_filter.reason}</Text>
+          <Text style={styles.outputMeta}>
+            {batch.audio_filter.decision === 'skip_clear_silence' ? 'SPEECH CALL BYPASSED' : 'PASSED TO SPEECH'}
+            {batch.audio_filter.active_frame_ratio !== null && batch.audio_filter.active_frame_ratio !== undefined
+              ? ` · ${Math.round(batch.audio_filter.active_frame_ratio * 100)}% active frames`
+              : ' · uncertain audio kept'}
+          </Text>
+        </OutputBlock>
+      ) : null}
       {batch.transcript.length ? (
-        <OutputBlock icon="text-box-outline" title="1 · Transcript" complete={batch.stage !== 'transcribing'}>
+        <OutputBlock icon="text-box-outline" title="2 · Full transcript retained" complete={batch.stage !== 'transcribing'}>
           {speechProvider ? <ProviderTrace label="Gemini speech" provenance={speechProvider} /> : null}
           {batch.transcript.map((segment) => (
             <View key={segment.id} style={styles.transcriptRow}>
@@ -438,17 +452,30 @@ function BatchOutput({ batch }: { batch: DayBatch }) {
             </View>
           ))}
         </OutputBlock>
-      ) : <OutputBlock icon="text-box-outline" title="1 · Transcript"><Text style={styles.emptyCopy}>Waiting for this batch to arrive.</Text></OutputBlock>}
+      ) : <OutputBlock icon="text-box-outline" title="2 · Full transcript retained"><Text style={styles.emptyCopy}>{batch.audio_filter?.decision === 'skip_clear_silence' ? 'No transcript was created for this clear-silence batch.' : 'Waiting for this batch to arrive.'}</Text></OutputBlock>}
+
+      {batch.index_state.selected_segments !== undefined ? (
+        <OutputBlock icon="filter-variant" title="3 · High-recall transcript triage" complete={batch.stage !== 'indexing'}>
+          {filterProvider ? <ProviderTrace label={filterProvider.provider === 'google.gemini' ? 'Gemini triage' : 'Local bypass'} provenance={filterProvider} /> : null}
+          <Text style={styles.outputText}>{kept} of {total} transcript segments continue into cumulative memory synthesis. Dropped text remains retained for Ask retrieval.</Text>
+          {(batch.index_state.filter_decisions ?? []).map((decision) => (
+            <View key={decision.segment_id} style={styles.filterDecision}>
+              <Text style={[styles.filterDecisionBadge, decision.keep ? styles.filterKeep : styles.filterDrop]}>{decision.keep ? 'KEEP' : 'DROP'}</Text>
+              <Text style={styles.filterDecisionText}>{decision.category} · {decision.reason}</Text>
+            </View>
+          ))}
+        </OutputBlock>
+      ) : null}
 
       {batch.reconciliation.boundary_revision ? (
-        <OutputBlock icon="vector-link" title="2 · Boundary reconciliation" complete={batch.stage !== 'reconciling'}>
+        <OutputBlock icon="vector-link" title="4 · Boundary reconciliation" complete={batch.stage !== 'reconciling'}>
           <Text style={styles.outputText}>{batch.reconciliation.boundary_revision}</Text>
           <Text style={styles.outputMeta}>{batch.reconciliation.context_segments_used ?? 0} prior-tail segment · {(batch.reconciliation.speaker_clusters_carried ?? []).length} speaker identities carried</Text>
         </OutputBlock>
       ) : null}
 
       {batch.index_state.evidence_chunks !== undefined ? (
-        <OutputBlock icon="database-search-outline" title="3 · Retrieval index" complete={batch.stage !== 'indexing'}>
+        <OutputBlock icon="database-search-outline" title="5 · Filtered memory index" complete={batch.stage !== 'indexing'}>
           <View style={styles.indexGrid}>
             <MiniStat value={batch.index_state.evidence_chunks} label="evidence chunks" />
             <MiniStat value={batch.index_state.lexical_terms} label="lexical terms" />
@@ -459,14 +486,14 @@ function BatchOutput({ batch }: { batch: DayBatch }) {
       ) : null}
 
       {batch.pending_changes.length ? (
-        <OutputBlock icon="source-branch" title="4 · Proposed memory mutations" complete={batch.stage === 'published'}>
+        <OutputBlock icon="source-branch" title="6 · Proposed memory mutations" complete={batch.stage === 'published'}>
           {intelligenceProvider ? <ProviderTrace label="Gemini intelligence" provenance={intelligenceProvider} /> : null}
           {batch.pending_changes.map((change) => <ChangeRow key={change.id} change={change} preview />)}
         </OutputBlock>
       ) : null}
 
       {batch.status === 'complete' ? (
-        <OutputBlock icon="check-decagram-outline" title="5 · Atomic publish" complete>
+        <OutputBlock icon="check-decagram-outline" title="7 · Atomic publish" complete>
           <Text style={styles.outputText}>Transcript, retrieval evidence, current memory, and revision history became visible together.</Text>
         </OutputBlock>
       ) : null}
@@ -630,6 +657,11 @@ const styles = StyleSheet.create({
   outputBlock: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.canvas, gap: spacing.md },
   providerTrace: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.pineSoft },
   providerTraceText: { color: colors.pine, fontFamily: font.mono, fontSize: 8 },
+  filterDecision: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, paddingTop: spacing.xs },
+  filterDecisionBadge: { minWidth: 34, fontFamily: font.mono, fontSize: 7, letterSpacing: 0.5 },
+  filterKeep: { color: colors.green },
+  filterDrop: { color: colors.inkFaint },
+  filterDecisionText: { flex: 1, color: colors.inkMuted, fontSize: 9, lineHeight: 14 },
   outputHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   outputTitle: { flex: 1, color: colors.ink, fontFamily: font.medium, fontSize: 11 },
   outputStatus: { color: colors.coralDark, fontFamily: font.mono, fontSize: 7 },

@@ -25,7 +25,12 @@ from app.gemini_provider import (
     _structured_input_token_upper_bound,
 )
 from app.models import Recording
-from app.providers import AskRequest, ProviderBilledFailure, SpeechRequest
+from app.providers import (
+    AskRequest,
+    ProviderBilledFailure,
+    SegmentFilterRequest,
+    SpeechRequest,
+)
 
 from .conftest import FIXTURE_ROOT, login, mutation_headers
 
@@ -676,6 +681,60 @@ def test_intelligence_repairs_cheap_then_escalates_once_to_strong(tmp_path: Path
         settings.llm_strong_model,
     ]
     assert 0 < provenance["estimated_cost_usd"] <= reservation
+
+
+def test_high_recall_segment_filter_uses_cheap_model_and_exact_partition(
+    tmp_path: Path,
+) -> None:
+    settings = _settings(tmp_path)
+    transport = FakeTransport(
+        [
+            _interaction(
+                {
+                    "decisions": [
+                        {
+                            "segment_id": "segment-1",
+                            "keep": True,
+                            "category": "uncertain-context",
+                            "reason": "Could qualify a later decision.",
+                            "confidence": 0.72,
+                        },
+                        {
+                            "segment_id": "segment-2",
+                            "keep": False,
+                            "category": "greeting",
+                            "reason": "Social greeting with no work content.",
+                            "confidence": 0.98,
+                        },
+                    ]
+                },
+                model=settings.llm_cheap_model,
+                request_id="filter-1",
+            )
+        ]
+    )
+    adapter = GeminiAdapter(settings, transport=transport, sleep=lambda _: None)
+    request = SegmentFilterRequest(
+        recording_id="recording-1",
+        transcript_version=2,
+        prior_context=[{"id": "prior-1", "text": "We may change the launch plan."}],
+        segments=[
+            {"id": "segment-1", "text": "Yes, do that instead."},
+            {"id": "segment-2", "text": "Good morning everyone."},
+        ],
+        request_id="filter-attempt-1",
+        budget_usd=2.0,
+    )
+    reservation = adapter.estimate_filter_reservation(request)
+
+    result = adapter.filter_segments(replace(request, budget_usd=reservation))
+
+    assert [item["keep"] for item in result.decisions] == [True, False]
+    assert result.provenance["model_alias"] == "llm.cheap"
+    assert result.provenance["policy"] == "high_recall_keep_when_uncertain"
+    prompt = transport.calls[0]["json"]["input"][0]["text"]
+    assert "When uncertain, KEEP" in prompt
+    assert "prior-1" in prompt
 
 
 def test_safety_block_is_billed_but_never_repaired_or_escalated(tmp_path: Path) -> None:

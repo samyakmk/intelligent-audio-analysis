@@ -115,17 +115,29 @@ The `day_demo` recording experience exercises the proposed all-day architecture 
 pretending that every batch is available up front. One uploaded PCM WAV is split into
 3–8 immutable `day_batch` media objects at nearby semantic boundaries. A `day_session`
 then advances exactly one durable checkpoint at a time for the oldest unpublished batch:
-transcription, boundary reconciliation, retrieval indexing, temporal extraction, and
-atomic publication. Future batch sidecars remain server-private until their batch reaches
-the transcription checkpoint.
+conservative audio gating, transcription, boundary reconciliation, high-recall transcript
+triage/indexing, temporal extraction, and atomic publication. Future batch sidecars remain
+server-private until their batch reaches the transcription checkpoint.
 
-In `gemini` mode, the transcription checkpoint uploads only the arriving, explicitly
-approved batch to Gemini. The extraction checkpoint sends the transcript accumulated
-through that watermark to Gemini and projects the returned grounded intelligence into a
-new temporal-memory snapshot. Each speech and intelligence attempt has a stable batch and
-reset-generation identity, a durable pre-dispatch budget fence, provider provenance, and
-a cost-ledger event. Ask uses Gemini against only the evidence visible through the selected
-batch watermark, so historical questions cannot see later audio.
+In `gemini` mode, a conservative streaming PCM activity gate first bypasses paid speech only
+for clear near-silence; unsupported or ambiguous audio passes without loading decoded samples
+for the whole batch into memory. The transcription checkpoint
+uploads only the arriving, explicitly approved batch to Gemini. A small cheap-model triage
+then evaluates every new transcript segment with prior-tail context. It keeps anything that
+may contain work state or future interpretive value and drops only clear filler, repetition,
+artifacts, and unrelated chatter. The full transcript remains retained. The extraction
+checkpoint sends only triage-kept evidence accumulated through that watermark to Gemini and
+projects the returned grounded intelligence into a new temporal-memory snapshot. Speech,
+triage, and intelligence attempts each have a stable batch/reset-generation identity, a
+durable pre-dispatch budget fence, provider provenance, and a cost-ledger event.
+If triage is unavailable or over budget, the batch fails open by keeping every segment;
+filtering can reduce cost but cannot become a prerequisite for preserving evidence.
+
+Ask is deliberately separate from recurring memory synthesis. It retrieves across the full
+published transcript—including triage-dropped segments when they match the question—then
+backfills with recent triage-kept evidence and sends at most a bounded evidence set to Gemini.
+Both retrieval and model context stop at the selected batch watermark, so historical questions
+cannot see later audio.
 
 Published memory uses keyed `add`, `supersede`, and `resolve` operations. Older values
 remain in the change log, while current projections and Ask context exclude superseded

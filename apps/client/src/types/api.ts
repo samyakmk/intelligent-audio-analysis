@@ -177,16 +177,34 @@ export interface DayBatch {
     boundary_revision?: string;
   };
   index_state: {
+    transcript_segments?: number;
+    selected_segments?: number;
+    excluded_segments?: number;
     evidence_chunks?: number;
     lexical_terms?: number;
     vector_embeddings?: number;
     neighbor_links?: number;
+    filter_decisions?: {
+      segment_id: string;
+      keep: boolean;
+      category: string;
+      reason: string;
+      confidence: number;
+    }[];
   };
   pending_changes: DayChange[];
   published_snapshot: Partial<DayMemory>;
   provider?: {
     speech?: { provider?: string; model_alias?: string; resolved_model?: string; usage?: Record<string, unknown> } | null;
+    filter?: { provider?: string; model_alias?: string; resolved_model?: string; usage?: Record<string, unknown> } | null;
     intelligence?: { provider?: string; model_alias?: string; resolved_model?: string; usage?: Record<string, unknown> } | null;
+  };
+  audio_filter?: {
+    decision?: 'skip_clear_silence' | 'pass_to_speech' | 'pass_uncertain';
+    reason?: string;
+    active_frame_ratio?: number | null;
+    rms?: number | null;
+    peak?: number | null;
   };
   started_at?: IsoDate | null;
   completed_at?: IsoDate | null;
