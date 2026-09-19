@@ -109,6 +109,28 @@ Provider selection is policy, not a UI concern. Stable aliases (`speech.standard
 `speech.strong`, `llm.cheap`, `llm.strong`, and `embed.multilingual`) resolve to exact
 IDs recorded in provenance and cost events.
 
+## Continuous-day simulation
+
+The `day_demo` recording experience exercises the proposed all-day architecture without
+pretending that every batch is available up front. One uploaded PCM WAV is split into
+3–8 immutable `day_batch` media objects at nearby semantic boundaries. A `day_session`
+then advances exactly one durable checkpoint at a time for the oldest unpublished batch:
+transcription, boundary reconciliation, retrieval indexing, temporal extraction, and
+atomic publication. Future batch sidecars remain server-private until their batch reaches
+the transcription checkpoint.
+
+Published memory uses keyed `add`, `supersede`, and `resolve` operations. Older values
+remain in the change log, while current projections and Ask context exclude superseded
+values. Ask answers carry the processed watermark and may be provisional; re-asking after
+a later publish can return a revised answer and different citations. An expected revision
+makes stage retries replay-safe. Reset clears projections but preserves immutable batch
+media, and normal recording deletion removes the day session and every derived batch blob.
+
+This path is currently a deterministic architecture demo. Its two checked-in long-form
+WAVs are tone carriers with explicitly labeled scripted transcript sidecars. Arbitrary day
+uploads are split and retained, but stop at a visible fixture/provider boundary instead of
+inventing transcript evidence.
+
 ## Canonical lifecycle
 
 ```text

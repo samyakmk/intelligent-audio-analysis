@@ -13,7 +13,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, Vi
 import { AppShell } from '@/components/AppShell';
 import { LocalAudioPlayer } from '@/components/AudioPlayer';
 import { DropZone } from '@/components/DropZone';
-import { Button, Card, Notice, PageTitle } from '@/components/ui';
+import { Button, Card, Notice, PageTitle, Segmented } from '@/components/ui';
 import {
   canUploadInConfiguredLanguage,
   isProviderDataApprovalSatisfied,
@@ -28,7 +28,7 @@ import { useSession } from '@/providers/SessionProvider';
 import { colors, font, radius, spacing } from '@/theme';
 import type { UploadSession } from '@/types/api';
 
-import { demoAudioSamples, loadDemoAudioSample } from './demoSamples';
+import { dayDemoSamples, demoAudioSamples, loadDemoAudioSample, type DemoAudioSample } from './demoSamples';
 
 const MAX_BYTES = 500 * 1024 * 1024;
 
@@ -59,6 +59,8 @@ export default function UploadScreen() {
   const [fileError, setFileError] = useState<string>();
   const [pendingUpload, setPendingUpload] = useState<PendingUpload>();
   const [providerDataApproved, setProviderDataApproved] = useState(false);
+  const [experience, setExperience] = useState<'recording' | 'day_demo'>('day_demo');
+  const [batchCount, setBatchCount] = useState(5);
 
   const isBusy = step !== 'idle';
   const approvalRequired = requiresProviderDataApproval(capabilities);
@@ -110,7 +112,7 @@ export default function UploadScreen() {
     }
   };
 
-  const selectSample = async (sample: (typeof demoAudioSamples)[number]) => {
+  const selectSample = async (sample: DemoAudioSample) => {
     if (sampleLoading || isBusy) return;
     setSampleLoading(sample.id);
     setError(undefined);
@@ -171,7 +173,7 @@ export default function UploadScreen() {
       if (actualSize > MAX_BYTES) throw new Error(`This audio is ${formatBytes(actualSize)}. Use a file smaller than 500 MiB.`);
       if (actualSize > quotaRemaining) throw new Error(`This demo has ${formatBytes(quotaRemaining)} of storage left. Use a smaller file.`);
       const digest = await sha256(bytes);
-      const fingerprint = JSON.stringify([digest, file.name, actualSize, file.mimeType, selectedLanguage]);
+      const fingerprint = JSON.stringify([digest, file.name, actualSize, file.mimeType, selectedLanguage, experience, batchCount]);
       setStep('reserving');
       const uploadSession = pendingUpload?.fingerprint === fingerprint
         ? pendingUpload.session
@@ -184,6 +186,8 @@ export default function UploadScreen() {
           vocabulary_hints: [],
           mode: 'standard',
           provider_data_approved: providerDataApproved,
+          experience,
+          batch_count: batchCount,
         });
       setPendingUpload({ fingerprint, session: uploadSession });
       setStep('uploading');
@@ -191,7 +195,7 @@ export default function UploadScreen() {
       setStep('verifying');
       const recording = await api.completeUpload(uploadSession.recording_id, uploadSession.id, digest);
       setPendingUpload(undefined);
-      router.replace(`/recordings/${recording.id}`);
+      router.replace(experience === 'day_demo' ? `/day/${recording.id}` : `/recordings/${recording.id}`);
     } catch (caught) {
       setStep('idle');
       if (caught instanceof ApiError && caught.status >= 400 && caught.status < 500) setPendingUpload(undefined);
@@ -210,8 +214,42 @@ export default function UploadScreen() {
     <AppShell>
       <View style={styles.intro}>
         <Text style={styles.eyebrow}>START A RUN</Text>
-        <PageTitle title="Add a recording" subtitle="Upload audio, record a new clip, or choose a synthetic example. The backend publishes each stage as it completes." />
+        <PageTitle title="Add a recording" subtitle="Simulate a continuous day in sequential batches, or run the original single-recording pipeline." />
       </View>
+
+      <Card style={styles.modeCard}>
+        <View style={styles.modeHeading}>
+          <View style={styles.modeCopy}>
+            <Text style={styles.modeTitle}>Choose the processing experience</Text>
+            <Text style={styles.modeBody}>The day simulation processes one batch completely before the next one appears.</Text>
+          </View>
+          {experience === 'day_demo' ? <View style={styles.demoPill}><Text style={styles.demoPillText}>NEW DEMO</Text></View> : null}
+        </View>
+        <Segmented
+          value={experience}
+          options={[
+            { value: 'day_demo', label: 'Continuous day', description: 'Watch memory evolve across arriving batches' },
+            { value: 'recording', label: 'Single recording', description: 'Run the existing all-at-once analysis' },
+          ]}
+          onChange={(value) => {
+            setExperience(value);
+            clearFile();
+          }}
+        />
+        {experience === 'day_demo' ? (
+          <View style={styles.batchPicker}>
+            <View style={styles.batchPickerCopy}>
+              <Text style={styles.batchPickerTitle}>Split into about {batchCount} batches</Text>
+              <Text style={styles.batchPickerBody}>Boundaries snap to nearby pauses, so individual batch lengths can vary.</Text>
+            </View>
+            <View style={styles.batchButtons}>
+              <Button size="sm" variant="secondary" accessibilityLabel="Use one fewer batch" disabled={batchCount <= 3 || isBusy} onPress={() => setBatchCount((value) => Math.max(3, value - 1))}>−</Button>
+              <Text style={styles.batchValue}>{batchCount}</Text>
+              <Button size="sm" variant="secondary" accessibilityLabel="Use one more batch" disabled={batchCount >= 8 || isBusy} onPress={() => setBatchCount((value) => Math.min(8, value + 1))}>+</Button>
+            </View>
+          </View>
+        ) : null}
+      </Card>
 
       <View style={[styles.stepRail, phone && styles.stepRailPhone]}>
         {[
@@ -262,12 +300,12 @@ export default function UploadScreen() {
                 <View style={styles.sampleIntro}>
                   <View style={styles.sampleIcon}><MaterialCommunityIcons name="flask-outline" size={22} color={colors.blue} /></View>
                   <View style={styles.sampleIntroCopy}>
-                    <Text style={styles.sampleTitle}>Synthetic recordings</Text>
-                    <Text style={styles.sampleBody}>Pick a ready-made scenario to run through the pipeline.</Text>
+                  <Text style={styles.sampleTitle}>{experience === 'day_demo' ? 'Synthetic workdays' : 'Synthetic recordings'}</Text>
+                    <Text style={styles.sampleBody}>{experience === 'day_demo' ? 'Each scenario contains later evidence that revises earlier conclusions.' : 'Pick a ready-made scenario to run through the pipeline.'}</Text>
                   </View>
                 </View>
                 <View style={styles.sampleList}>
-                  {demoAudioSamples.map((sample) => (
+                  {(experience === 'day_demo' ? dayDemoSamples : demoAudioSamples).map((sample) => (
                     <Pressable
                       key={sample.id}
                       accessibilityRole="button"
@@ -323,6 +361,9 @@ export default function UploadScreen() {
 
         {fileError ? <Notice tone="error" title="Try another input">{fileError}</Notice> : null}
         {error ? <Notice tone="error" title="Could not continue">{error.message}</Notice> : null}
+        {experience === 'day_demo' && inputSource === 'sample' ? (
+          <Notice tone="info" title="Functional architecture fixture">The WAV carries deterministic tones. Its scripted sidecar supplies the transcript so the demo can isolate batching, temporal memory, revisions, and Ask behavior.</Notice>
+        ) : null}
 
         {isBusy ? (
           <View style={styles.busyArea}>
@@ -351,8 +392,8 @@ export default function UploadScreen() {
 
         <View style={styles.runRow}>
           <View style={styles.runCopy}>
-            <Text style={styles.runTitle}>Cost-optimized by default</Text>
-            <Text style={styles.runBody}>Use the lower-cost model first; escalate only when validation fails.</Text>
+              <Text style={styles.runTitle}>{experience === 'day_demo' ? 'Sequential on purpose' : 'Cost-optimized by default'}</Text>
+            <Text style={styles.runBody}>{experience === 'day_demo' ? `The demo will reveal and fully process ${batchCount} batches one at a time.` : 'Use the lower-cost model first; escalate only when validation fails.'}</Text>
           </View>
           <Button
             size="lg"
@@ -361,7 +402,7 @@ export default function UploadScreen() {
             loading={isBusy}
             onPress={upload}
           >
-            Run demo
+            {experience === 'day_demo' ? 'Simulate the day' : 'Run demo'}
           </Button>
         </View>
       </Card>
@@ -389,6 +430,19 @@ const styles = StyleSheet.create({
   stepLabelPhone: { fontSize: 9, textAlign: 'center' },
   stepLabelActive: { color: colors.ink },
   inputCard: { gap: spacing.xl },
+  modeCard: { gap: spacing.lg },
+  modeHeading: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: spacing.lg },
+  modeCopy: { flex: 1, minWidth: 0, gap: 4 },
+  modeTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 16 },
+  modeBody: { color: colors.inkMuted, fontSize: 11, lineHeight: 17 },
+  demoPill: { paddingHorizontal: spacing.sm, paddingVertical: 5, borderRadius: radius.pill, backgroundColor: colors.coralSoft },
+  demoPillText: { color: colors.coralDark, fontFamily: font.medium, fontSize: 8, letterSpacing: 0.8 },
+  batchPicker: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.lg, flexWrap: 'wrap', padding: spacing.lg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.canvas },
+  batchPickerCopy: { flex: 1, minWidth: 220, gap: 3 },
+  batchPickerTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 13 },
+  batchPickerBody: { color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
+  batchButtons: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  batchValue: { minWidth: 28, color: colors.pine, fontFamily: font.mono, fontSize: 18, textAlign: 'center' },
   sourceGrid: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xl },
   sourceGridNarrow: { flexDirection: 'column' },
   sourceColumn: { flex: 1, minWidth: 0, gap: spacing.md },

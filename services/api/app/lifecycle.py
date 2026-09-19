@@ -19,6 +19,8 @@ from .models import (
     AskSession,
     BudgetReservation,
     CostEvent,
+    DayBatch,
+    DaySession,
     EvidenceUnit,
     IdempotencyRecord,
     IntelligenceVersion,
@@ -169,6 +171,12 @@ def logically_tombstone_recording(
 
     db.execute(delete(EvidenceUnit).where(EvidenceUnit.recording_id == recording.id))
     db.execute(delete(ActionItem).where(ActionItem.recording_id == recording.id))
+    day_sessions = db.scalars(
+        select(DaySession).where(DaySession.recording_id == recording.id)
+    ).all()
+    for day_session in day_sessions:
+        db.execute(delete(DayBatch).where(DayBatch.day_session_id == day_session.id))
+        db.delete(day_session)
     db.execute(
         delete(IntelligenceVersion).where(IntelligenceVersion.recording_id == recording.id)
     )
@@ -302,6 +310,8 @@ def logically_tombstone_recording(
     recording.tags = []
     recording.folder = None
     recording.source_kind = "deleted_tombstone"
+    recording.experience = "recording"
+    recording.requested_batch_count = 1
     recording.error_code = None
     recording.error_detail = None
 

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from ..auth import AuthContext, hash_token, require_auth, require_mutation_auth
 from ..blobstore import BlobAlreadyExists
 from ..database import get_db
+from ..day_domain import initialize_day_session
 from ..demo_fixture import FIXTURE_SHA256
 from ..domain import (
     BudgetReservationUnavailable,
@@ -277,6 +278,8 @@ def create_upload_session(
         content_type=payload.content_type,
         requested_language=payload.language,
         requested_mode=payload.mode,
+        experience=payload.experience,
+        requested_batch_count=(payload.batch_count if payload.experience == "day_demo" else 1),
         provider_data_approved=payload.provider_data_approved,
         vocabulary_hints=payload.vocabulary_hints,
         size_bytes=payload.size_bytes,
@@ -605,7 +608,7 @@ def complete_upload(
     )
     db.add(media)
     recording.sha256 = actual_hash
-    if actual_hash == FIXTURE_SHA256:
+    if actual_hash == FIXTURE_SHA256 and recording.experience == "recording":
         recording.source_kind = "approved_fixture"
     recording.size_bytes = len(data)
     recording.duration_ms = probe.duration_ms
@@ -614,18 +617,39 @@ def complete_upload(
     recording.status = "SEALED"
     recording.stage = "sealed"
     upload.status = "sealed"
-    run = create_processing_run(db, recording)
-    db.add(
-        OutboxEvent(
-            id=str(uuid.uuid4()),
-            event_key=f"recording.sealed:{recording.id}:g{recording.deletion_generation}",
-            event_type="recording.sealed.v1",
-            recording_id=recording.id,
-            workspace_id=auth.workspace_id,
-            deletion_generation=recording.deletion_generation,
+    run = None
+    if recording.experience == "day_demo":
+        initialize_day_session(
+            db,
+            request.app.state.blob_store,
+            recording,
+            data,
+            fixture_root=request.app.state.settings.fixture_root,
         )
-    )
-    emit_event(db, recording, "recording.sealed", {})
+        db.add(
+            OutboxEvent(
+                id=str(uuid.uuid4()),
+                event_key=f"day.sealed:{recording.id}:g{recording.deletion_generation}",
+                event_type="day.sealed.v1",
+                recording_id=recording.id,
+                workspace_id=auth.workspace_id,
+                deletion_generation=recording.deletion_generation,
+            )
+        )
+        emit_event(db, recording, "day.ready", {"batch_count": recording.requested_batch_count})
+    else:
+        run = create_processing_run(db, recording)
+        db.add(
+            OutboxEvent(
+                id=str(uuid.uuid4()),
+                event_key=f"recording.sealed:{recording.id}:g{recording.deletion_generation}",
+                event_type="recording.sealed.v1",
+                recording_id=recording.id,
+                workspace_id=auth.workspace_id,
+                deletion_generation=recording.deletion_generation,
+            )
+        )
+        emit_event(db, recording, "recording.sealed", {})
     response = recording_detail_payload(db, recording)
     _remember_idempotency(
         db,
@@ -640,7 +664,7 @@ def complete_upload(
     # Copy-first makes the DB transaction redrivable if it fails after the
     # immutable original write.  Quarantine is removed only after the sealed
     # MediaObject and outbox state are durable.
-    if request.app.state.settings.inline_worker:
+    if request.app.state.settings.inline_worker and run is not None:
         background_tasks.add_task(
             process_run,
             request.app.state.database,

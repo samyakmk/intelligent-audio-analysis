@@ -18,7 +18,7 @@ from app.config import Settings
 from app.models import Base
 
 API_ROOT = Path(__file__).resolve().parents[1]
-HEAD_REVISION = "d9a2f18b6c41"
+HEAD_REVISION = "e7c8a912b4d0"
 
 
 def _config() -> Config:

@@ -73,6 +73,8 @@ class Recording(Base):
     content_type: Mapped[str] = mapped_column(String(128), default="application/octet-stream")
     requested_language: Mapped[str] = mapped_column(String(32), default="en")
     requested_mode: Mapped[str] = mapped_column(String(16), default="standard")
+    experience: Mapped[str] = mapped_column(String(24), default="recording")
+    requested_batch_count: Mapped[int] = mapped_column(Integer, default=1)
     provider_data_approved: Mapped[bool] = mapped_column(Boolean, default=False)
     vocabulary_hints: Mapped[list] = mapped_column(JSON, default=list)
     tags: Mapped[list] = mapped_column(JSON, default=list)
@@ -102,6 +104,64 @@ class Recording(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     retention_expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: utcnow() + timedelta(days=30)
+    )
+
+
+class DaySession(Base):
+    __tablename__ = "day_session"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    recording_id: Mapped[str] = mapped_column(
+        ForeignKey("recording.id", ondelete="CASCADE"), unique=True, index=True
+    )
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspace.id"), index=True)
+    fixture_id: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="ready", index=True)
+    requested_batch_count: Mapped[int] = mapped_column(Integer)
+    processed_batch_count: Mapped[int] = mapped_column(Integer, default=0)
+    active_batch_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    current_stage: Mapped[str] = mapped_column(String(48), default="waiting")
+    watermark_ms: Mapped[int] = mapped_column(Integer, default=0)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    memory_state: Mapped[dict] = mapped_column(JSON, default=dict)
+    change_log: Mapped[list] = mapped_column(JSON, default=list)
+    ask_history: Mapped[list] = mapped_column(JSON, default=list)
+    pipeline_version: Mapped[str] = mapped_column(String(64), default="day-memory-demo.v1")
+    error_code: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    error_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class DayBatch(Base):
+    __tablename__ = "day_batch"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    day_session_id: Mapped[str] = mapped_column(
+        ForeignKey("day_session.id", ondelete="CASCADE"), index=True
+    )
+    recording_id: Mapped[str] = mapped_column(
+        ForeignKey("recording.id", ondelete="CASCADE"), index=True
+    )
+    batch_index: Mapped[int] = mapped_column(Integer)
+    start_ms: Mapped[int] = mapped_column(Integer)
+    end_ms: Mapped[int] = mapped_column(Integer)
+    blob_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="queued", index=True)
+    stage: Mapped[str] = mapped_column(String(48), default="waiting")
+    source_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    transcript: Mapped[list] = mapped_column(JSON, default=list)
+    reconciliation: Mapped[dict] = mapped_column(JSON, default=dict)
+    index_state: Mapped[dict] = mapped_column(JSON, default=dict)
+    pending_changes: Mapped[list] = mapped_column(JSON, default=list)
+    published_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    __table_args__ = (
+        UniqueConstraint("day_session_id", "batch_index", name="uq_day_batch_index"),
     )
 
 

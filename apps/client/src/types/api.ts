@@ -98,6 +98,8 @@ export interface Recording {
   version?: number;
   is_fixture?: boolean;
   fixture_label?: string;
+  experience?: 'recording' | 'day_demo';
+  requested_batch_count?: number;
 }
 
 export interface UploadOptions {
@@ -109,6 +111,117 @@ export interface UploadOptions {
   vocabulary_hints: string[];
   mode: 'standard' | 'deep';
   provider_data_approved: boolean;
+  experience?: 'recording' | 'day_demo';
+  batch_count?: number;
+}
+
+export type DayStage = 'waiting' | 'transcribing' | 'reconciling' | 'indexing' | 'extracting' | 'published';
+
+export interface DayTranscriptSegment {
+  id: Id;
+  start_ms: number;
+  end_ms: number;
+  speaker_id?: string;
+  speaker_name?: string;
+  text: string;
+}
+
+export interface DayChange {
+  id: Id;
+  operation: 'add' | 'supersede' | 'resolve';
+  kind: 'decision' | 'action' | 'fact' | 'open_question';
+  key: string;
+  before?: string | null;
+  after: string;
+  owner_before?: string | null;
+  owner_after?: string | null;
+  batch_index: number;
+  evidence?: Omit<Citation, 'recording_id' | 'transcript_version'>;
+}
+
+export interface DayMemoryItem {
+  id: Id;
+  key: string;
+  kind: DayChange['kind'];
+  text: string;
+  status: 'current' | 'superseded' | 'resolved' | 'open' | 'done';
+  owner?: string | null;
+  due?: string | null;
+  effective_batch: number;
+  superseded_by?: string;
+  evidence: Omit<Citation, 'recording_id' | 'transcript_version'>[];
+}
+
+export interface DayMemory {
+  summary: string;
+  decisions: DayMemoryItem[];
+  actions: DayMemoryItem[];
+  facts: DayMemoryItem[];
+  open_questions: DayMemoryItem[];
+}
+
+export interface DayBatch {
+  id: Id;
+  index: number;
+  number: number;
+  start_ms: number;
+  end_ms: number;
+  duration_ms: number;
+  size_bytes?: number | null;
+  status: 'queued' | 'processing' | 'complete';
+  stage: DayStage;
+  transcript: DayTranscriptSegment[];
+  reconciliation: {
+    context_segments_used?: number;
+    speaker_clusters_carried?: string[];
+    boundary_revision?: string;
+  };
+  index_state: {
+    evidence_chunks?: number;
+    lexical_terms?: number;
+    vector_embeddings?: number;
+    neighbor_links?: number;
+  };
+  pending_changes: DayChange[];
+  published_snapshot: Partial<DayMemory>;
+  started_at?: IsoDate | null;
+  completed_at?: IsoDate | null;
+}
+
+export interface DayAskMessage {
+  id: Id;
+  question: string;
+  answer: string;
+  citations: Citation[];
+  abstained: boolean;
+  provisional: boolean;
+  watermark_ms: number;
+  processed_batch_count: number;
+  strategy: string;
+  created_at: IsoDate;
+}
+
+export interface DaySession {
+  id: Id;
+  recording_id: Id;
+  title: string;
+  description?: string | null;
+  status: 'ready' | 'processing' | 'complete' | 'failed';
+  batch_count: number;
+  processed_batch_count: number;
+  active_batch_index?: number | null;
+  current_stage: string;
+  watermark_ms: number;
+  duration_ms: number;
+  revision: number;
+  memory: DayMemory;
+  changes: DayChange[];
+  ask_history: DayAskMessage[];
+  suggested_questions: string[];
+  batches: DayBatch[];
+  mock: boolean;
+  notice?: string | null;
+  error?: { code: string; message: string } | null;
 }
 
 export interface UploadSession {

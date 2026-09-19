@@ -1,0 +1,821 @@
+{
+  "schema_version": "intelligent-audio-analysis.day-demo.v1",
+  "notice": "Audio is a deterministic tone carrier; transcripts are scripted mock data.",
+  "fixtures": [
+    {
+      "id": "atlas-launch-day",
+      "title": "Atlas launch day",
+      "description": "A launch plan evolves across the day as performance and legal evidence arrives.",
+      "filename": "atlas-launch-day.wav",
+      "segments": [
+        {
+          "id": "segment-1",
+          "start_ms": 0,
+          "end_ms": 6200,
+          "speaker_id": "maya",
+          "language_bcp47": "en-US",
+          "text": "At the morning kickoff, the Atlas beta is planned for Friday afternoon.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-2",
+          "start_ms": 7000,
+          "end_ms": 13200,
+          "speaker_id": "jordan",
+          "language_bcp47": "en-US",
+          "text": "The team expects Nimbus to provide the analytics layer for the beta.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-3",
+          "start_ms": 14000,
+          "end_ms": 20200,
+          "speaker_id": "maya",
+          "language_bcp47": "en-US",
+          "text": "We are choosing Nimbus for now because its integration is already complete.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-4",
+          "start_ms": 21000,
+          "end_ms": 27200,
+          "speaker_id": "jordan",
+          "language_bcp47": "en-US",
+          "text": "Maya will finish the launch checklist by Thursday at three in the afternoon.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-5",
+          "start_ms": 28000,
+          "end_ms": 34200,
+          "speaker_id": "priya",
+          "language_bcp47": "en-US",
+          "text": "Northstar says enterprise approval requires searchable audit logs from day one.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-6",
+          "start_ms": 35000,
+          "end_ms": 41200,
+          "speaker_id": "maya",
+          "language_bcp47": "en-US",
+          "text": "Nimbus lists audit logs on its roadmap, so that requirement is still unverified.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-7",
+          "start_ms": 42000,
+          "end_ms": 48200,
+          "speaker_id": "jordan",
+          "language_bcp47": "en-US",
+          "text": "We can keep preparing, but vendor approval must remain provisional until validation.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-8",
+          "start_ms": 49000,
+          "end_ms": 55200,
+          "speaker_id": "priya",
+          "language_bcp47": "en-US",
+          "text": "The performance test measured Nimbus authentication latency at nine hundred milliseconds, triple our limit.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-9",
+          "start_ms": 56000,
+          "end_ms": 62200,
+          "speaker_id": "maya",
+          "language_bcp47": "en-US",
+          "text": "That result blocks the Friday launch, so pause the launch decision and do not approve Nimbus.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-10",
+          "start_ms": 63000,
+          "end_ms": 69200,
+          "speaker_id": "jordan",
+          "language_bcp47": "en-US",
+          "text": "I will compare Cedar today because it advertises audit logs and lower authentication latency.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-11",
+          "start_ms": 70000,
+          "end_ms": 76200,
+          "speaker_id": "priya",
+          "language_bcp47": "en-US",
+          "text": "Cedar passed the latency test at two hundred milliseconds and its audit log export is available now.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-12",
+          "start_ms": 77000,
+          "end_ms": 83200,
+          "speaker_id": "maya",
+          "language_bcp47": "en-US",
+          "text": "Replace Nimbus with Cedar, move the beta launch to Monday, and transfer the checklist to Priya.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-13",
+          "start_ms": 84000,
+          "end_ms": 90200,
+          "speaker_id": "jordan",
+          "language_bcp47": "en-US",
+          "text": "Legal has signed Cedar's data processing agreement, so the remaining vendor risk is closed.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-14",
+          "start_ms": 91000,
+          "end_ms": 97200,
+          "speaker_id": "priya",
+          "language_bcp47": "en-US",
+          "text": "The revised launch checklist is complete and includes rollback, monitoring, and audit-log verification.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-15",
+          "start_ms": 98000,
+          "end_ms": 104200,
+          "speaker_id": "maya",
+          "language_bcp47": "en-US",
+          "text": "The final decision is Cedar with a Monday beta launch; no Friday release will happen.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-16",
+          "start_ms": 105000,
+          "end_ms": 111200,
+          "speaker_id": "jordan",
+          "language_bcp47": "en-US",
+          "text": "End-of-day recap: Cedar is approved, Priya completed the checklist, and Monday is the committed launch date.",
+          "confidence": 1.0
+        }
+      ],
+      "operations": [
+        {
+          "id": "atlas-launch-1",
+          "trigger_segment_id": "segment-1",
+          "operation": "add",
+          "kind": "decision",
+          "key": "launch-date",
+          "text": "Launch the Atlas beta Friday afternoon.",
+          "status": "provisional"
+        },
+        {
+          "id": "atlas-vendor-1",
+          "trigger_segment_id": "segment-3",
+          "operation": "add",
+          "kind": "decision",
+          "key": "analytics-vendor",
+          "text": "Use Nimbus for Atlas analytics.",
+          "status": "provisional"
+        },
+        {
+          "id": "atlas-checklist-1",
+          "trigger_segment_id": "segment-4",
+          "operation": "add",
+          "kind": "action",
+          "key": "launch-checklist",
+          "text": "Finish the Atlas launch checklist.",
+          "owner": "Maya",
+          "due": "Thursday 3:00 PM",
+          "status": "open"
+        },
+        {
+          "id": "atlas-audit-fact",
+          "trigger_segment_id": "segment-5",
+          "operation": "add",
+          "kind": "fact",
+          "key": "audit-requirement",
+          "text": "Northstar requires searchable audit logs from day one.",
+          "status": "current"
+        },
+        {
+          "id": "atlas-audit-question",
+          "trigger_segment_id": "segment-6",
+          "operation": "add",
+          "kind": "open_question",
+          "key": "vendor-audit-support",
+          "text": "Does the selected vendor provide audit logs now?",
+          "status": "open"
+        },
+        {
+          "id": "atlas-latency",
+          "trigger_segment_id": "segment-8",
+          "operation": "add",
+          "kind": "fact",
+          "key": "nimbus-latency",
+          "text": "Nimbus authentication latency measured 900 ms against a 300 ms limit.",
+          "status": "current"
+        },
+        {
+          "id": "atlas-launch-hold",
+          "trigger_segment_id": "segment-9",
+          "operation": "supersede",
+          "kind": "decision",
+          "key": "launch-date",
+          "text": "Pause the Friday launch pending vendor validation.",
+          "status": "provisional"
+        },
+        {
+          "id": "atlas-vendor-hold",
+          "trigger_segment_id": "segment-9",
+          "operation": "supersede",
+          "kind": "decision",
+          "key": "analytics-vendor",
+          "text": "Do not approve Nimbus after the failed performance test.",
+          "status": "provisional"
+        },
+        {
+          "id": "atlas-vendor-final",
+          "trigger_segment_id": "segment-12",
+          "operation": "supersede",
+          "kind": "decision",
+          "key": "analytics-vendor",
+          "text": "Use Cedar for Atlas analytics.",
+          "status": "current"
+        },
+        {
+          "id": "atlas-launch-final",
+          "trigger_segment_id": "segment-12",
+          "operation": "supersede",
+          "kind": "decision",
+          "key": "launch-date",
+          "text": "Launch the Atlas beta on Monday.",
+          "status": "current"
+        },
+        {
+          "id": "atlas-checklist-2",
+          "trigger_segment_id": "segment-12",
+          "operation": "supersede",
+          "kind": "action",
+          "key": "launch-checklist",
+          "text": "Finish the revised Atlas launch checklist.",
+          "owner": "Priya",
+          "due": "Before Monday launch",
+          "status": "open"
+        },
+        {
+          "id": "atlas-audit-resolved",
+          "trigger_segment_id": "segment-11",
+          "operation": "resolve",
+          "kind": "open_question",
+          "key": "vendor-audit-support",
+          "text": "Cedar provides audit-log export now.",
+          "status": "resolved"
+        },
+        {
+          "id": "atlas-dpa",
+          "trigger_segment_id": "segment-13",
+          "operation": "add",
+          "kind": "fact",
+          "key": "cedar-dpa",
+          "text": "Legal signed Cedar's data processing agreement.",
+          "status": "current"
+        },
+        {
+          "id": "atlas-checklist-done",
+          "trigger_segment_id": "segment-14",
+          "operation": "resolve",
+          "kind": "action",
+          "key": "launch-checklist",
+          "text": "The revised launch checklist is complete.",
+          "owner": "Priya",
+          "status": "resolved"
+        }
+      ],
+      "summaries": [
+        {
+          "through_segment_id": "segment-4",
+          "text": "Atlas is provisionally planned for Friday using Nimbus; Maya owns the launch checklist."
+        },
+        {
+          "through_segment_id": "segment-7",
+          "text": "Friday preparation continues, but Nimbus approval is provisional because audit-log support is unverified."
+        },
+        {
+          "through_segment_id": "segment-10",
+          "text": "Nimbus failed latency validation, the Friday launch is paused, and Cedar is being evaluated."
+        },
+        {
+          "through_segment_id": "segment-12",
+          "text": "Cedar passed technical checks; the team selected it, moved launch to Monday, and reassigned the checklist to Priya."
+        },
+        {
+          "through_segment_id": "segment-16",
+          "text": "Atlas will launch Monday on Cedar. Legal approval and the revised checklist are complete."
+        }
+      ],
+      "ask_answers": [
+        {
+          "question": "What is the current Atlas launch plan?",
+          "keywords": [
+            "current",
+            "atlas",
+            "launch",
+            "plan"
+          ],
+          "versions": [
+            {
+              "through_segment_id": "segment-1",
+              "answer": "The current plan is a provisional Friday afternoon beta launch.",
+              "citation_segment_ids": [
+                "segment-1"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-9",
+              "answer": "The Friday launch is paused while the vendor is re-evaluated.",
+              "citation_segment_ids": [
+                "segment-8",
+                "segment-9"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-12",
+              "answer": "The current plan is to launch Monday using Cedar.",
+              "citation_segment_ids": [
+                "segment-11",
+                "segment-12"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-16",
+              "answer": "The final plan is a Monday Atlas beta launch using Cedar.",
+              "citation_segment_ids": [
+                "segment-15",
+                "segment-16"
+              ],
+              "provisional": false
+            }
+          ]
+        },
+        {
+          "question": "Who owns the launch checklist?",
+          "keywords": [
+            "who",
+            "owns",
+            "launch",
+            "checklist"
+          ],
+          "versions": [
+            {
+              "through_segment_id": "segment-4",
+              "answer": "Maya owns the launch checklist, due Thursday at 3 PM.",
+              "citation_segment_ids": [
+                "segment-4"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-12",
+              "answer": "Ownership moved to Priya for the revised checklist.",
+              "citation_segment_ids": [
+                "segment-12"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-14",
+              "answer": "Priya owned the revised checklist and has completed it.",
+              "citation_segment_ids": [
+                "segment-12",
+                "segment-14"
+              ],
+              "provisional": false
+            }
+          ]
+        }
+      ],
+      "suggested_questions": [
+        "What is the current Atlas launch plan?",
+        "Who owns the launch checklist?",
+        "Why was Nimbus rejected?"
+      ],
+      "duration_ms": 112000,
+      "bytes": 3584044,
+      "sha256": "a7fd9bcc2402fb384b9920714014b8fd48b4d4bde90bd67e0d9284e77a7a38eb",
+      "source_type": "deterministic-tone-carrier",
+      "quality_gate_eligible": false,
+      "provenance": {
+        "mock": true,
+        "recognition_performed": false,
+        "pipeline_version": "day-memory-demo.v1",
+        "notice": "The transcript and evolving memory are scripted fixture data, not ASR output."
+      }
+    },
+    {
+      "id": "meridian-incident-day",
+      "title": "Meridian incident day",
+      "description": "An incident diagnosis changes twice as later telemetry and partner evidence arrive.",
+      "filename": "meridian-incident-day.wav",
+      "segments": [
+        {
+          "id": "segment-1",
+          "start_ms": 0,
+          "end_ms": 6200,
+          "speaker_id": "nia",
+          "language_bcp47": "en-US",
+          "text": "The Meridian incident began with duplicate invoices reported by three customers.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-2",
+          "start_ms": 7000,
+          "end_ms": 13200,
+          "speaker_id": "leo",
+          "language_bcp47": "en-US",
+          "text": "My first hypothesis is database replica lag causing invoice writes to repeat.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-3",
+          "start_ms": 14000,
+          "end_ms": 20200,
+          "speaker_id": "nia",
+          "language_bcp47": "en-US",
+          "text": "Nia owns the rollback investigation and will report back before noon.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-4",
+          "start_ms": 21000,
+          "end_ms": 27200,
+          "speaker_id": "omar",
+          "language_bcp47": "en-US",
+          "text": "Until we know more, disable the automated invoice export to contain customer impact.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-5",
+          "start_ms": 28000,
+          "end_ms": 34200,
+          "speaker_id": "leo",
+          "language_bcp47": "en-US",
+          "text": "Database write identifiers are unique and replica lag stayed normal, so the first hypothesis is unsupported.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-6",
+          "start_ms": 35000,
+          "end_ms": 41200,
+          "speaker_id": "nia",
+          "language_bcp47": "en-US",
+          "text": "The worker logs show repeated delivery attempts with the same internal job identifier.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-7",
+          "start_ms": 42000,
+          "end_ms": 48200,
+          "speaker_id": "leo",
+          "language_bcp47": "en-US",
+          "text": "The working diagnosis is now an internal retry-queue defect rather than the database.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-8",
+          "start_ms": 49000,
+          "end_ms": 55200,
+          "speaker_id": "omar",
+          "language_bcp47": "en-US",
+          "text": "I am checking the partner webhook responses because every repeated job followed an external timeout.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-9",
+          "start_ms": 56000,
+          "end_ms": 62200,
+          "speaker_id": "omar",
+          "language_bcp47": "en-US",
+          "text": "The partner returned accepted, then a delayed server error, which made our client replay a completed event.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-10",
+          "start_ms": 63000,
+          "end_ms": 69200,
+          "speaker_id": "nia",
+          "language_bcp47": "en-US",
+          "text": "That evidence supersedes the retry-queue diagnosis; the root cause is ambiguous partner acknowledgement handling.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-11",
+          "start_ms": 70000,
+          "end_ms": 76200,
+          "speaker_id": "leo",
+          "language_bcp47": "en-US",
+          "text": "Mitigate by deduplicating on the partner event identifier before any invoice write.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-12",
+          "start_ms": 77000,
+          "end_ms": 83200,
+          "speaker_id": "nia",
+          "language_bcp47": "en-US",
+          "text": "Omar will own the mitigation because he has the partner integration context.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-13",
+          "start_ms": 84000,
+          "end_ms": 90200,
+          "speaker_id": "omar",
+          "language_bcp47": "en-US",
+          "text": "The event-identifier deduplication patch is deployed to the canary worker.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-14",
+          "start_ms": 91000,
+          "end_ms": 97200,
+          "speaker_id": "leo",
+          "language_bcp47": "en-US",
+          "text": "No duplicate invoices appeared during the forty-minute canary observation window.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-15",
+          "start_ms": 98000,
+          "end_ms": 104200,
+          "speaker_id": "nia",
+          "language_bcp47": "en-US",
+          "text": "The incident is resolved; automated invoice export can resume gradually.",
+          "confidence": 1.0
+        },
+        {
+          "id": "segment-16",
+          "start_ms": 105000,
+          "end_ms": 111200,
+          "speaker_id": "omar",
+          "language_bcp47": "en-US",
+          "text": "Follow-up for Tuesday: document partner acknowledgement semantics and add a replay regression test.",
+          "confidence": 1.0
+        }
+      ],
+      "operations": [
+        {
+          "id": "incident-impact",
+          "trigger_segment_id": "segment-1",
+          "operation": "add",
+          "kind": "fact",
+          "key": "customer-impact",
+          "text": "Three customers reported duplicate invoices.",
+          "status": "current"
+        },
+        {
+          "id": "incident-cause-1",
+          "trigger_segment_id": "segment-2",
+          "operation": "add",
+          "kind": "decision",
+          "key": "root-cause",
+          "text": "Database replica lag is the leading hypothesis.",
+          "status": "provisional"
+        },
+        {
+          "id": "incident-owner-1",
+          "trigger_segment_id": "segment-3",
+          "operation": "add",
+          "kind": "action",
+          "key": "mitigation-owner",
+          "text": "Investigate and roll back the duplicate-invoice cause.",
+          "owner": "Nia",
+          "due": "Before noon",
+          "status": "open"
+        },
+        {
+          "id": "incident-containment",
+          "trigger_segment_id": "segment-4",
+          "operation": "add",
+          "kind": "decision",
+          "key": "containment",
+          "text": "Disable automated invoice export.",
+          "status": "current"
+        },
+        {
+          "id": "incident-db-cleared",
+          "trigger_segment_id": "segment-5",
+          "operation": "supersede",
+          "kind": "decision",
+          "key": "root-cause",
+          "text": "Database replica lag is not supported by telemetry.",
+          "status": "provisional"
+        },
+        {
+          "id": "incident-cause-2",
+          "trigger_segment_id": "segment-7",
+          "operation": "supersede",
+          "kind": "decision",
+          "key": "root-cause",
+          "text": "An internal retry-queue defect is the working diagnosis.",
+          "status": "provisional"
+        },
+        {
+          "id": "incident-partner-evidence",
+          "trigger_segment_id": "segment-9",
+          "operation": "add",
+          "kind": "fact",
+          "key": "partner-response",
+          "text": "The partner returned 202 followed by a delayed 500 for the same event.",
+          "status": "current"
+        },
+        {
+          "id": "incident-cause-final",
+          "trigger_segment_id": "segment-10",
+          "operation": "supersede",
+          "kind": "decision",
+          "key": "root-cause",
+          "text": "Ambiguous partner acknowledgement handling caused completed events to replay.",
+          "status": "current"
+        },
+        {
+          "id": "incident-mitigation",
+          "trigger_segment_id": "segment-11",
+          "operation": "add",
+          "kind": "decision",
+          "key": "mitigation",
+          "text": "Deduplicate invoice processing by partner event identifier.",
+          "status": "current"
+        },
+        {
+          "id": "incident-owner-2",
+          "trigger_segment_id": "segment-12",
+          "operation": "supersede",
+          "kind": "action",
+          "key": "mitigation-owner",
+          "text": "Deploy and validate event-identifier deduplication.",
+          "owner": "Omar",
+          "due": "Today",
+          "status": "open"
+        },
+        {
+          "id": "incident-deployed",
+          "trigger_segment_id": "segment-13",
+          "operation": "add",
+          "kind": "fact",
+          "key": "mitigation-deployed",
+          "text": "Event-identifier deduplication is deployed to canary.",
+          "status": "current"
+        },
+        {
+          "id": "incident-owner-done",
+          "trigger_segment_id": "segment-15",
+          "operation": "resolve",
+          "kind": "action",
+          "key": "mitigation-owner",
+          "text": "The mitigation is deployed and validated.",
+          "owner": "Omar",
+          "status": "resolved"
+        },
+        {
+          "id": "incident-resolved",
+          "trigger_segment_id": "segment-15",
+          "operation": "resolve",
+          "kind": "decision",
+          "key": "containment",
+          "text": "The incident is resolved and invoice export may resume gradually.",
+          "status": "resolved"
+        },
+        {
+          "id": "incident-followup",
+          "trigger_segment_id": "segment-16",
+          "operation": "add",
+          "kind": "action",
+          "key": "follow-up",
+          "text": "Document partner acknowledgement semantics and add a replay regression test.",
+          "owner": "Omar",
+          "due": "Tuesday",
+          "status": "open"
+        }
+      ],
+      "summaries": [
+        {
+          "through_segment_id": "segment-4",
+          "text": "Duplicate invoices triggered containment; database lag is the initial hypothesis and Nia owns investigation."
+        },
+        {
+          "through_segment_id": "segment-7",
+          "text": "Database telemetry cleared the first hypothesis; the team now suspects the internal retry queue."
+        },
+        {
+          "through_segment_id": "segment-10",
+          "text": "Partner response evidence superseded both earlier diagnoses; ambiguous acknowledgements caused replay."
+        },
+        {
+          "through_segment_id": "segment-13",
+          "text": "The team chose event-ID deduplication, transferred ownership to Omar, and deployed a canary patch."
+        },
+        {
+          "through_segment_id": "segment-16",
+          "text": "The incident is resolved after event-ID deduplication stopped duplicates; Omar owns Tuesday follow-up."
+        }
+      ],
+      "ask_answers": [
+        {
+          "question": "What caused the Meridian incident?",
+          "keywords": [
+            "what",
+            "caused",
+            "meridian",
+            "incident"
+          ],
+          "versions": [
+            {
+              "through_segment_id": "segment-2",
+              "answer": "Database replica lag is the initial, unconfirmed hypothesis.",
+              "citation_segment_ids": [
+                "segment-2"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-7",
+              "answer": "The working diagnosis is an internal retry-queue defect; database lag was ruled out.",
+              "citation_segment_ids": [
+                "segment-5",
+                "segment-7"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-10",
+              "answer": "Ambiguous partner acknowledgements caused completed events to be replayed.",
+              "citation_segment_ids": [
+                "segment-9",
+                "segment-10"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-16",
+              "answer": "The confirmed cause was ambiguous partner acknowledgement handling, which replayed completed events.",
+              "citation_segment_ids": [
+                "segment-9",
+                "segment-10"
+              ],
+              "provisional": false
+            }
+          ]
+        },
+        {
+          "question": "Who owns the mitigation?",
+          "keywords": [
+            "who",
+            "owns",
+            "mitigation"
+          ],
+          "versions": [
+            {
+              "through_segment_id": "segment-3",
+              "answer": "Nia initially owns the rollback investigation.",
+              "citation_segment_ids": [
+                "segment-3"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-12",
+              "answer": "Mitigation ownership transferred to Omar.",
+              "citation_segment_ids": [
+                "segment-12"
+              ],
+              "provisional": true
+            },
+            {
+              "through_segment_id": "segment-15",
+              "answer": "Omar owned and completed the mitigation deployment and validation.",
+              "citation_segment_ids": [
+                "segment-12",
+                "segment-15"
+              ],
+              "provisional": false
+            }
+          ]
+        }
+      ],
+      "suggested_questions": [
+        "What caused the Meridian incident?",
+        "Who owns the mitigation?",
+        "What evidence ruled out the database?"
+      ],
+      "duration_ms": 112000,
+      "bytes": 3584044,
+      "sha256": "55dc59e7b006f655eb0905f031defcc7758f9eec6221f069807149b2e50d4db4",
+      "source_type": "deterministic-tone-carrier",
+      "quality_gate_eligible": false,
+      "provenance": {
+        "mock": true,
+        "recognition_performed": false,
+        "pipeline_version": "day-memory-demo.v1",
+        "notice": "The transcript and evolving memory are scripted fixture data, not ASR output."
+      }
+    }
+  ]
+}

@@ -22,7 +22,7 @@ from .providers import (
     MockHashEmbeddingAdapter,
     create_provider_adapters,
 )
-from .routes import auth, discovery, recordings
+from .routes import auth, day, discovery, recordings
 from .seed import seed_reference_data
 
 
@@ -153,6 +153,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(recordings.router)
     application.include_router(recordings.media_router)
     application.include_router(discovery.router)
+    application.include_router(day.router)
 
     @application.get("/healthz", tags=["health"])
     @application.get("/v1/health", tags=["health"])

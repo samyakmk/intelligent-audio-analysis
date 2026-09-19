@@ -42,6 +42,27 @@ export const demoAudioSamples: DemoAudioSample[] = [
   },
 ];
 
+export const dayDemoSamples: DemoAudioSample[] = [
+  {
+    id: 'atlas-launch-day',
+    title: 'Atlas launch day',
+    description: 'Plans change from Friday/Nimbus to Monday/Cedar, with ownership handed from Maya to Priya.',
+    durationMs: 112_000,
+    size: 3_584_044,
+    filename: 'atlas-launch-day.wav',
+    assetModule: require('../../../assets/day-demo-audio/atlas-launch-day.wav'),
+  },
+  {
+    id: 'meridian-incident-day',
+    title: 'Meridian incident day',
+    description: 'An initial database theory is replaced by a partner retry-queue root cause and a new owner.',
+    durationMs: 112_000,
+    size: 3_584_044,
+    filename: 'meridian-incident-day.wav',
+    assetModule: require('../../../assets/day-demo-audio/meridian-incident-day.wav'),
+  },
+];
+
 export async function loadDemoAudioSample(sample: DemoAudioSample): Promise<PickedAudio> {
   const asset = Asset.fromModule(sample.assetModule);
   if (!asset.localUri) await asset.downloadAsync();

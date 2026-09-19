@@ -11,6 +11,8 @@ import type {
   AskScope,
   AskSession,
   CostSummary,
+  DayAskMessage,
+  DaySession,
   ExportRequest,
   ExportResult,
   Page,
@@ -242,6 +244,23 @@ export const api = {
       method: 'POST',
       body: { upload_session_id: uploadSessionId, sha256 },
       idempotent: true,
+    }),
+  daySession: (recordingId: string) =>
+    request<DaySession>(`/v1/day-sessions/${encodeURIComponent(recordingId)}`),
+  advanceDay: (recordingId: string, expectedRevision: number) =>
+    request<DaySession>(`/v1/day-sessions/${encodeURIComponent(recordingId)}/advance`, {
+      method: 'POST',
+      body: { expected_revision: expectedRevision },
+    }),
+  askDay: (recordingId: string, question: string) =>
+    request<DayAskMessage>(`/v1/day-sessions/${encodeURIComponent(recordingId)}/ask`, {
+      method: 'POST',
+      body: { question },
+    }),
+  resetDay: (recordingId: string, expectedRevision: number) =>
+    request<DaySession>(`/v1/day-sessions/${encodeURIComponent(recordingId)}/reset`, {
+      method: 'POST',
+      body: { expected_revision: expectedRevision },
     }),
   transcript: (id: string) => request<Transcript>(`/v1/recordings/${encodeURIComponent(id)}/transcript`),
   intelligence: (id: string) =>

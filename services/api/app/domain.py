@@ -256,6 +256,8 @@ def recording_payload(recording: Recording) -> dict[str, Any]:
         "content_type": recording.content_type,
         "language": recording.requested_language,
         "mode": recording.requested_mode,
+        "experience": recording.experience,
+        "requested_batch_count": recording.requested_batch_count,
         "provider_data_approved": recording.provider_data_approved,
         "tags": recording.tags or [],
         "folder": recording.folder,
@@ -1089,7 +1091,7 @@ def process_run(
 
 
 def _publish_transcript(
-    db: Session, recording: Recording, run: ProcessingRun, result: Any
+    db: Session, recording: Recording, run: ProcessingRun | None, result: Any
 ) -> TranscriptVersion:
     version = recording.transcript_version + 1
     transcript = TranscriptVersion(

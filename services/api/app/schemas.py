@@ -26,6 +26,8 @@ class UploadSessionCreate(StrictModel):
     vocabulary_hints: list[str] = Field(default_factory=list, max_length=100)
     mode: Literal["standard", "deep"] = "standard"
     provider_data_approved: bool = False
+    experience: Literal["recording", "day_demo"] = "recording"
+    batch_count: int = Field(default=5, ge=3, le=8)
 
     @field_validator("sha256")
     @classmethod
@@ -129,6 +131,18 @@ class AskMessageCreate(StrictModel):
     content: str | None = Field(default=None, min_length=1, max_length=2_000)
     question: str | None = Field(default=None, min_length=1, max_length=2_000)
     deep: bool = False
+
+
+class DayAdvanceRequest(StrictModel):
+    expected_revision: int = Field(ge=0)
+
+
+class DayAskRequest(StrictModel):
+    question: str = Field(min_length=1, max_length=2_000)
+
+
+class DayResetRequest(StrictModel):
+    expected_revision: int = Field(ge=0)
 
 
 class TaskPatch(StrictModel):

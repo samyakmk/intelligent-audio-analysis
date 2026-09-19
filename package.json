@@ -12,7 +12,7 @@
     "start": "python3.12 scripts/run_local.py",
     "dev": "npm start",
     "start:fixture": "python3.12 scripts/run_local.py --provider-mode fixture",
-    "fixtures": "python3.12 scripts/generate_fixture_wav.py --check && python3.12 scripts/verify_fixture_corpus.py && python3.12 scripts/verify_env_example.py",
+    "fixtures": "python3.12 scripts/generate_fixture_wav.py --check && python3.12 scripts/verify_fixture_corpus.py && python3.12 scripts/verify_day_demo_fixtures.py && python3.12 scripts/verify_env_example.py",
     "test": "npm run fixtures && npm run test:backend && npm run test:client",
     "test:backend": "cd services/api && PROVIDER_MODE=fixture ALLOW_REMOTE_PROVIDER_CALLS=false FIXTURE_ROOT=../../fixtures .venv/bin/python -m pytest",
     "test:client": "EXPO_NO_DOTENV=1 npm --prefix apps/client test",

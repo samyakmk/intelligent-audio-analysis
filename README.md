@@ -218,6 +218,8 @@ Start with [the architecture](docs/ARCHITECTURE.md),
 - Retries are idempotent, deletion fences late workers, and paid calls use durable
   budget reservations.
 - Fixture output is visibly labeled and is never presented as real model output.
+- The continuous-day simulation physically splits one file, processes batches
+  sequentially, retains temporal revisions, and limits Ask to the published watermark.
 - Gemini Files are deleted on a best-effort basis after processing.
 
 Lexical Search, extractive exact answers, tasks, recaps, mind-map export, and other
@@ -235,4 +237,6 @@ target-device verification, and a database backup/restore plan.
 
 Without Gemini, arbitrary valid audio is stored and verified but stops visibly at
 `PARTIAL / speech_unconfigured`; only the exact checked-in fixture can publish scripted
-fixture artifacts.
+fixture artifacts. The continuous-day path likewise uses its two checked-in, visibly
+labeled long-form tone carriers; arbitrary day audio needs a future day-specific ASR
+worker after splitting.

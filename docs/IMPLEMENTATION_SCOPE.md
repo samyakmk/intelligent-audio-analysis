@@ -12,6 +12,10 @@
 - Validated immutable upload flow, byte-fidelity media access, lifecycle/status, retry,
   cancellation, and deletion fencing.
 - Fixture-backed transcript and intelligence artifacts with citations and provenance.
+- A continuous-day architecture simulation that splits one uploaded fixture into a
+  configurable 3–8 batches, processes each batch through visible durable checkpoints,
+  publishes revision-aware temporal memory, and answers Ask only through the current
+  processed watermark.
 - Transcript edits and speaker labels with downstream version invalidation.
 - Deterministic evidence search, cited/abstaining Ask, tasks, exports, mind maps, and
   Cost Lab.
@@ -70,10 +74,14 @@
   deletion. The checked-in tone carrier is intentionally non-speech and is not an ASR
   quality sample. Hosted PostgreSQL concurrency, signed native builds, target-device
   cookies/media, and membership-revocation races have not been exercised on this host.
+- Continuous-day processing: the sequential worker, temporal mutation model, canonical
+  republishing, reset/deletion lifecycle, and evolving Ask behavior are implemented for
+  two deterministic long-form fixtures. Arbitrary audio has no day-specific remote ASR
+  worker yet and stops at a visible provider boundary.
 
 ## Explicitly deferred
 
-Live/device capture, automatic voice identity, translation, custom templates, shared
+Production all-day capture and ingestion cadence, automatic voice identity, translation, custom templates, shared
 links, multimodal attachments, production connectors, API/MCP/webhooks, scheduled
 memory, enterprise identity/administration, legal hold, regional resilience, owned
 GPUs, and any production durability/compliance/savings claim.

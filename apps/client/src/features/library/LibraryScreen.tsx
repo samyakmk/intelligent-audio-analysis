@@ -84,7 +84,7 @@ export default function LibraryScreen() {
             </Card>
           ) : (
             <View style={styles.runList}>
-              {runs.map((recording) => <RunRow key={recording.id} recording={recording} onOpen={() => router.push(`/recordings/${recording.id}`)} />)}
+              {runs.map((recording) => <RunRow key={recording.id} recording={recording} onOpen={() => router.push(recording.experience === 'day_demo' ? `/day/${recording.id}` : `/recordings/${recording.id}`)} />)}
             </View>
           )}
         </>
@@ -103,14 +103,14 @@ function RunRow({ recording, onOpen }: { recording: Recording; onOpen(): void })
       onPress={onOpen}
       style={({ pressed }) => [styles.runRow, pressed && styles.pressed]}
     >
-      <View style={styles.runIcon}><MaterialCommunityIcons name="waveform" size={22} color={colors.coralDark} /></View>
+      <View style={styles.runIcon}><MaterialCommunityIcons name={recording.experience === 'day_demo' ? 'timeline-clock-outline' : 'waveform'} size={22} color={colors.coralDark} /></View>
       <View style={styles.runCopy}>
         <View style={styles.runTitleRow}>
           <Text numberOfLines={1} style={styles.runTitle}>{recording.title}</Text>
           <StatusBadge state={recording.state} />
         </View>
         <Text numberOfLines={1} style={styles.runMeta}>
-          {[formatDuration(recording.duration_ms), formatDate(recording.created_at, true)].join(' · ')}
+          {[recording.experience === 'day_demo' ? `${recording.requested_batch_count ?? 5} batch day` : undefined, formatDuration(recording.duration_ms), formatDate(recording.created_at, true)].filter(Boolean).join(' · ')}
         </Text>
         <View style={styles.stageLine}>
           {(['original_ready', 'transcript_ready', 'intelligence_ready', 'indexed_ready'] as const).map((key) => (
