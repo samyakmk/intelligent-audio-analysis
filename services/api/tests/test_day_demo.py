@@ -152,6 +152,18 @@ def test_day_demo_advances_stage_by_stage_and_revises_prior_memory(
     assert "Monday" in final_plan["answer"]
     assert "Cedar" in final_plan["answer"]
     assert final_plan["provisional"] is False
+    historical_plan = client.post(
+        f"/v1/day-sessions/{recording_id}/ask",
+        json={
+            "question": "What is the current Atlas launch plan?",
+            "batch_index": 0,
+        },
+        headers=mutation_headers(csrf),
+    ).json()
+    assert "Friday" in historical_plan["answer"]
+    assert historical_plan["provisional"] is True
+    assert historical_plan["watermark_ms"] == state["batches"][0]["end_ms"]
+    assert historical_plan["processed_batch_count"] == 1
     owner = client.post(
         f"/v1/day-sessions/{recording_id}/ask",
         json={"question": "Who owns the launch checklist?"},
@@ -223,6 +235,12 @@ def test_day_ask_abstains_before_any_batch_is_published(client: TestClient) -> N
     assert response.status_code == 201
     assert response.json()["abstained"] is True
     assert response.json()["watermark_ms"] == 0
+    unavailable = client.post(
+        f"/v1/day-sessions/{recording_id}/ask",
+        json={"question": "What changed?", "batch_index": 0},
+        headers=mutation_headers(csrf),
+    )
+    assert unavailable.status_code == 409
 
 
 def test_deleting_day_demo_revokes_session_and_purges_batch_media(

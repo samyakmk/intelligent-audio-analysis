@@ -10,11 +10,23 @@ import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
 import { formatBytes, formatDuration } from '@/lib/format';
 import { colors, font, radius, spacing } from '@/theme';
-import type { DayBatch, DayChange, DayMemoryItem, DaySession } from '@/types/api';
+import type { DayBatch, DayChange, DayMemory, DayMemoryItem } from '@/types/api';
 
-import { currentMemory, dayStageLabel, revisionVerb, stageProgress, visibleBatch } from './presentation';
+import {
+  asksThroughWatermark,
+  changesThroughBatch,
+  currentMemory,
+  dayStageLabel,
+  memorySummary,
+  revisionVerb,
+  snapshotMemory,
+  snapshotWatermark,
+  stageProgress,
+  visibleBatch,
+} from './presentation';
 
 const AUTO_STEP_MS = 1_050;
+type SnapshotTab = 'overview' | 'decisions' | 'todos' | 'mindmap';
 
 export default function DayDemoScreen() {
   const params = useLocalSearchParams<{ id: string }>();
@@ -28,6 +40,8 @@ export default function DayDemoScreen() {
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState('');
   const [actionError, setActionError] = useState<Error>();
+  const [selectedBatchIndex, setSelectedBatchIndex] = useState<number | null>(null);
+  const [snapshotTab, setSnapshotTab] = useState<SnapshotTab>('overview');
   const session = resource.data;
 
   const advance = useCallback(async () => {
@@ -57,7 +71,11 @@ export default function DayDemoScreen() {
     setAsking(true);
     setActionError(undefined);
     try {
-      await api.askDay(session.recording_id, trimmed);
+      await api.askDay(
+        session.recording_id,
+        trimmed,
+        selectedBatchIndex === null ? undefined : selectedBatchIndex,
+      );
       // The pipeline may publish while Ask is running. Reload instead of
       // merging into a stale client snapshot so a newer watermark is never hidden.
       resource.setData(await api.daySession(session.recording_id));
@@ -74,6 +92,7 @@ export default function DayDemoScreen() {
     setActionError(undefined);
     try {
       resource.setData(await api.resetDay(session.recording_id, session.revision));
+      setSelectedBatchIndex(null);
       setAutoRun(true);
     } catch (caught) {
       setActionError(caught instanceof Error ? caught : new Error('The simulation could not restart'));
@@ -90,6 +109,16 @@ export default function DayDemoScreen() {
   }
 
   const active = visibleBatch(session);
+  const selectedBatch = selectedBatchIndex === null
+    ? undefined
+    : session.batches.find((batch) => batch.index === selectedBatchIndex && batch.status === 'complete');
+  const displayedBatch = selectedBatch ?? active;
+  const displayedMemory = snapshotMemory(session, selectedBatch?.index ?? null);
+  const displayedWatermark = snapshotWatermark(session, selectedBatch?.index ?? null);
+  const displayedChanges = changesThroughBatch(session, selectedBatch?.index ?? null);
+  const displayedAsks = asksThroughWatermark(session, displayedWatermark);
+  const displayedBatchCount = selectedBatch ? selectedBatch.index + 1 : session.processed_batch_count;
+  const historical = Boolean(selectedBatch);
   const complete = session.status === 'complete';
 
   return (
@@ -123,20 +152,51 @@ export default function DayDemoScreen() {
 
       <Card style={styles.overview}>
         <View style={styles.metrics}>
-          <Metric label="BATCHES PUBLISHED" value={`${session.processed_batch_count} / ${session.batch_count}`} />
-          <Metric label="ASK-READY THROUGH" value={formatDuration(session.watermark_ms)} />
-          <Metric label="CURRENT REVISION" value={`r${session.revision}`} />
-          <Metric label="PIPELINE STATE" value={dayStageLabel(session.current_stage)} accent />
+          <Metric label={historical ? 'BATCHES IN SNAPSHOT' : 'BATCHES PUBLISHED'} value={`${displayedBatchCount} / ${session.batch_count}`} />
+          <Metric label="ASK-READY THROUGH" value={formatDuration(displayedWatermark)} />
+          <Metric label={historical ? 'VIEWING' : 'CURRENT REVISION'} value={historical ? `Batch ${selectedBatch!.number}` : `r${session.revision}`} />
+          <Metric label="PIPELINE STATE" value={historical ? 'Historical snapshot' : dayStageLabel(session.current_stage)} accent />
         </View>
-        <ProgressBar value={stageProgress(session)} tone="pine" />
+        <ProgressBar value={historical ? (displayedBatchCount / session.batch_count) * 100 : stageProgress(session)} tone="pine" />
         <Text style={styles.progressCaption}>
-          {complete ? 'All batches are published. Earlier conclusions remain in the revision history.' : `${autoRun ? 'Auto-running' : 'Paused'} · next stage advances independently, like the next worker checkpoint.`}
+          {historical
+            ? `Frozen at Batch ${selectedBatch!.number}. Processing ${complete ? 'is complete' : 'continues independently'}; this view will not drift.`
+            : complete
+              ? 'All batches are published. Click any batch to inspect its historical snapshot.'
+              : `${autoRun ? 'Auto-running' : 'Paused'} · next stage advances independently, like the next worker checkpoint.`}
         </Text>
       </Card>
 
-      <View style={styles.batchRail} accessibilityRole="list">
-        {session.batches.map((batch) => <BatchCard key={batch.id} batch={batch} active={batch.id === active?.id} />)}
+      <View style={styles.snapshotSelector}>
+        <View style={styles.selectorHeading}>
+          <View style={styles.selectorCopy}>
+            <Text style={styles.sectionKicker}>TIME-TRAVEL SNAPSHOTS</Text>
+            <Text style={styles.selectorTitle}>Choose a published batch</Text>
+            <Text style={styles.selectorBody}>Everything below—overview, decisions, to-dos, map, history, memory, and Ask—rewinds to that publish point.</Text>
+          </View>
+          {historical ? <Button size="sm" icon="update" onPress={() => setSelectedBatchIndex(null)}>Follow latest</Button> : <Text style={styles.liveLabel}>● LIVE</Text>}
+        </View>
+        <View style={styles.batchRail} accessibilityRole="list">
+          {session.batches.map((batch) => (
+            <BatchCard
+              key={batch.id}
+              batch={batch}
+              active={!historical && batch.id === active?.id}
+              selected={batch.index === selectedBatch?.index}
+              onSelect={() => setSelectedBatchIndex(batch.index)}
+            />
+          ))}
+        </View>
       </View>
+
+      <SnapshotExplorer
+        batch={selectedBatch}
+        batchCount={displayedBatchCount}
+        memory={displayedMemory}
+        tab={snapshotTab}
+        watermarkMs={displayedWatermark}
+        onTab={setSnapshotTab}
+      />
 
       <View style={[styles.twoColumn, compact && styles.oneColumn]}>
         <View style={styles.primaryColumn}>
@@ -144,11 +204,11 @@ export default function DayDemoScreen() {
             <View style={styles.sectionHeading}>
               <View>
                 <Text style={styles.sectionKicker}>LIVE PIPELINE OUTPUT</Text>
-                <Text style={styles.sectionTitle}>{active ? `Batch ${active.number} · ${dayStageLabel(active.stage)}` : 'Waiting for batch'}</Text>
+                <Text style={styles.sectionTitle}>{displayedBatch ? `Batch ${displayedBatch.number} · ${dayStageLabel(displayedBatch.stage)}` : 'Waiting for batch'}</Text>
               </View>
-              {advancing ? <ActivityIndicator color={colors.coral} /> : !complete ? <Button size="sm" variant="secondary" icon="step-forward" disabled={advancing} onPress={() => void advance()}>Advance one stage</Button> : null}
+              {!historical && advancing ? <ActivityIndicator color={colors.coral} /> : !historical && !complete ? <Button size="sm" variant="secondary" icon="step-forward" disabled={advancing} onPress={() => void advance()}>Advance one stage</Button> : null}
             </View>
-            {active ? <BatchOutput batch={active} /> : null}
+            {displayedBatch ? <BatchOutput batch={displayedBatch} /> : null}
           </Card>
 
           <Card style={styles.historyCard}>
@@ -157,11 +217,11 @@ export default function DayDemoScreen() {
                 <Text style={styles.sectionKicker}>TEMPORAL CHANGE LOG</Text>
                 <Text style={styles.sectionTitle}>What changed, and why</Text>
               </View>
-              <Text style={styles.count}>{session.changes.length}</Text>
+              <Text style={styles.count}>{displayedChanges.length}</Text>
             </View>
-            {!session.changes.length ? <Text style={styles.emptyCopy}>Changes appear only when a batch is published.</Text> : (
+            {!displayedChanges.length ? <Text style={styles.emptyCopy}>Changes appear only when a batch is published.</Text> : (
               <View style={styles.changeList}>
-                {[...session.changes].reverse().map((change) => <ChangeRow key={`${change.id}-${change.batch_index}`} change={change} />)}
+                {[...displayedChanges].reverse().map((change) => <ChangeRow key={`${change.id}-${change.batch_index}`} change={change} />)}
               </View>
             )}
           </Card>
@@ -171,9 +231,9 @@ export default function DayDemoScreen() {
           <Card style={styles.askCard}>
             <View style={styles.askMark}><MaterialCommunityIcons name="comment-question-outline" size={22} color={colors.white} /></View>
             <View style={styles.askHeading}>
-              <Text style={styles.askKicker}>ASK THE DAY SO FAR</Text>
+              <Text style={styles.askKicker}>{historical ? `ASK BATCH ${selectedBatch!.number} SNAPSHOT` : 'ASK THE DAY SO FAR'}</Text>
               <Text style={styles.askTitle}>Answers obey the watermark</Text>
-              <Text style={styles.askBody}>Ask never sees queued batches. Re-ask after a later publish to watch the answer and citations change.</Text>
+              <Text style={styles.askBody}>{historical ? `Questions are answered only from evidence available through ${formatDuration(displayedWatermark)}.` : 'Ask never sees queued batches. Re-ask after a later publish to watch the answer and citations change.'}</Text>
             </View>
             <View style={styles.suggestions}>
               {session.suggested_questions.slice(0, 3).map((suggestion) => (
@@ -186,13 +246,13 @@ export default function DayDemoScreen() {
             <Input
               value={question}
               multiline
-              placeholder={session.watermark_ms ? `Ask about 0:00–${formatDuration(session.watermark_ms)}…` : 'Ask now to see a grounded abstention…'}
+              placeholder={displayedWatermark ? `Ask about 0:00–${formatDuration(displayedWatermark)}…` : 'Ask now to see a grounded abstention…'}
               onChangeText={setQuestion}
               onSubmitEditing={() => void ask()}
             />
             <Button icon="send" loading={asking} disabled={!question.trim()} onPress={() => void ask()}>Ask current memory</Button>
             <View style={styles.answers}>
-              {[...session.ask_history].reverse().map((message) => (
+              {[...displayedAsks].reverse().map((message) => (
                 <View key={message.id} style={styles.answer}>
                   <Text style={styles.answerQuestion}>{message.question}</Text>
                   <Text style={styles.answerText}>{message.answer}</Text>
@@ -208,10 +268,131 @@ export default function DayDemoScreen() {
             </View>
           </Card>
 
-          <MemoryCard session={session} />
+          <MemoryCard memory={displayedMemory} label={historical ? `Batch ${selectedBatch!.number} memory` : 'Current day memory'} />
         </View>
       </View>
     </AppShell>
+  );
+}
+
+function SnapshotExplorer({
+  batch,
+  batchCount,
+  memory,
+  tab,
+  watermarkMs,
+  onTab,
+}: {
+  batch?: DayBatch;
+  batchCount: number;
+  memory: DayMemory;
+  tab: SnapshotTab;
+  watermarkMs: number;
+  onTab(tab: SnapshotTab): void;
+}) {
+  const current = currentMemory(memory);
+  const decisions = current.filter((item) => item.kind === 'decision');
+  const actions = current.filter((item) => item.kind === 'action');
+  const facts = current.filter((item) => item.kind === 'fact');
+  const questions = current.filter((item) => item.kind === 'open_question');
+  const tabs: { id: SnapshotTab; label: string; icon: ComponentProps<typeof MaterialCommunityIcons>['name'] }[] = [
+    { id: 'overview', label: 'Overview', icon: 'view-dashboard-outline' },
+    { id: 'decisions', label: 'Decisions', icon: 'gavel' },
+    { id: 'todos', label: "To-do's", icon: 'checkbox-marked-circle-outline' },
+    { id: 'mindmap', label: 'Mind map', icon: 'graph-outline' },
+  ];
+  return (
+    <Card style={styles.explorer}>
+      <View style={styles.explorerHeading}>
+        <View>
+          <Text style={styles.sectionKicker}>PUBLISHED ARTIFACTS</Text>
+          <Text style={styles.sectionTitle}>{batch ? `As of Batch ${batch.number}` : 'Latest published state'}</Text>
+        </View>
+        <Text style={styles.snapshotStamp}>{`${batchCount} ${batchCount === 1 ? 'batch' : 'batches'} · through ${formatDuration(watermarkMs)}`}</Text>
+      </View>
+      <View style={styles.snapshotTabs} accessibilityRole="tablist">
+        {tabs.map((item) => (
+          <Pressable
+            key={item.id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: tab === item.id }}
+            onPress={() => onTab(item.id)}
+            style={[styles.snapshotTab, tab === item.id && styles.snapshotTabActive]}
+          >
+            <MaterialCommunityIcons name={item.icon} size={16} color={tab === item.id ? colors.pine : colors.inkMuted} />
+            <Text style={[styles.snapshotTabText, tab === item.id && styles.snapshotTabTextActive]}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {tab === 'overview' ? (
+        <View style={styles.snapshotPane}>
+          <Text style={styles.snapshotSummary}>{memorySummary(memory)}</Text>
+          <View style={styles.snapshotStats}>
+            <SnapshotStat label="Decisions" value={decisions.length} />
+            <SnapshotStat label="To-do's" value={actions.length} />
+            <SnapshotStat label="Facts" value={facts.length} />
+            <SnapshotStat label="Questions" value={questions.length} />
+          </View>
+          <View style={styles.overviewColumns}>
+            <SnapshotItemList title="Key decisions" items={decisions.slice(0, 3)} empty="No decisions yet." />
+            <SnapshotItemList title="Active to-do's" items={actions.slice(0, 3)} empty="No to-do's yet." />
+          </View>
+        </View>
+      ) : null}
+      {tab === 'decisions' ? <SnapshotItemList title="Decisions at this point" items={decisions} empty="No decisions had been published by this batch." roomy /> : null}
+      {tab === 'todos' ? <SnapshotItemList title="To-do's at this point" items={actions} empty="No to-do's had been published by this batch." roomy /> : null}
+      {tab === 'mindmap' ? <SnapshotMindMap memory={memory} /> : null}
+    </Card>
+  );
+}
+
+function SnapshotStat({ label, value }: { label: string; value: number }) {
+  return <View style={styles.snapshotStat}><Text style={styles.snapshotStatValue}>{value}</Text><Text style={styles.snapshotStatLabel}>{label}</Text></View>;
+}
+
+function SnapshotItemList({ title, items, empty, roomy = false }: { title: string; items: DayMemoryItem[]; empty: string; roomy?: boolean }) {
+  return (
+    <View style={[styles.snapshotList, roomy && styles.snapshotListRoomy]}>
+      <Text style={styles.snapshotListTitle}>{title}</Text>
+      {!items.length ? <Text style={styles.emptyCopy}>{empty}</Text> : items.map((item) => (
+        <View key={item.id} style={styles.snapshotItem}>
+          <View style={[styles.snapshotItemDot, item.status === 'resolved' && styles.snapshotItemDotResolved]} />
+          <View style={styles.snapshotItemCopy}>
+            <Text style={styles.snapshotItemMeta}>BATCH {item.effective_batch + 1} · {item.status}</Text>
+            <Text style={styles.snapshotItemText}>{item.text}</Text>
+            {item.owner ? <Text style={styles.ownerText}>Owner: {item.owner}{item.due ? ` · ${item.due}` : ''}</Text> : null}
+            {item.evidence[0] ? <Text style={styles.snapshotEvidence}>Source {formatDuration(item.evidence[0].start_ms)}–{formatDuration(item.evidence[0].end_ms)}</Text> : null}
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function SnapshotMindMap({ memory }: { memory: DayMemory }) {
+  const groups = [
+    { label: 'Decisions', icon: 'gavel' as const, items: currentMemory(memory).filter((item) => item.kind === 'decision') },
+    { label: "To-do's", icon: 'checkbox-marked-circle-outline' as const, items: currentMemory(memory).filter((item) => item.kind === 'action') },
+    { label: 'Facts', icon: 'lightbulb-outline' as const, items: currentMemory(memory).filter((item) => item.kind === 'fact') },
+    { label: 'Questions', icon: 'help-circle-outline' as const, items: currentMemory(memory).filter((item) => item.kind === 'open_question') },
+  ].filter((group) => group.items.length);
+  if (!groups.length) return <Text style={styles.emptyCopy}>The map appears after the first memory item is published.</Text>;
+  return (
+    <View style={styles.mapPane} accessibilityLabel={`Snapshot mind map with ${groups.length} branches`}>
+      <View style={styles.mapRoot}>
+        <MaterialCommunityIcons name="hub-outline" size={20} color={colors.white} />
+        <View style={styles.mapRootCopy}><Text style={styles.mapRootLabel}>Day memory</Text><Text style={styles.mapRootSummary}>{memorySummary(memory)}</Text></View>
+      </View>
+      <View style={styles.mapTrunk} />
+      <View style={styles.mapBranches}>
+        {groups.map((group) => (
+          <View key={group.label} style={styles.mapBranch}>
+            <View style={styles.mapBranchTitle}><MaterialCommunityIcons name={group.icon} size={15} color={colors.pine} /><Text style={styles.mapBranchLabel}>{group.label}</Text></View>
+            {group.items.map((item) => <View key={item.id} style={styles.mapLeaf}><View style={styles.mapLeafDot} /><Text style={styles.mapLeafText}>{item.text}</Text></View>)}
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -219,19 +400,26 @@ function Metric({ label, value, accent = false }: { label: string; value: string
   return <View style={styles.metric}><Text style={styles.metricLabel}>{label}</Text><Text style={[styles.metricValue, accent && styles.metricAccent]}>{value}</Text></View>;
 }
 
-function BatchCard({ batch, active }: { batch: DayBatch; active: boolean }) {
+function BatchCard({ batch, active, selected, onSelect }: { batch: DayBatch; active: boolean; selected: boolean; onSelect(): void }) {
   const queued = batch.status === 'queued';
   return (
-    <View style={[styles.batchCard, active && styles.batchCardActive, batch.status === 'complete' && styles.batchCardComplete]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={queued ? `Batch ${batch.number} has not been published` : `View Batch ${batch.number} snapshot`}
+      accessibilityState={{ disabled: queued, selected }}
+      disabled={queued}
+      onPress={onSelect}
+      style={({ pressed }) => [styles.batchCard, active && styles.batchCardActive, batch.status === 'complete' && styles.batchCardComplete, selected && styles.batchCardSelected, pressed && styles.pressed]}
+    >
       <View style={styles.batchTop}>
         <View style={[styles.batchNumber, batch.status === 'complete' && styles.batchNumberComplete]}>
           {batch.status === 'complete' ? <MaterialCommunityIcons name="check" size={14} color={colors.white} /> : <Text style={styles.batchNumberText}>{batch.number}</Text>}
         </View>
         <Text style={styles.batchTime}>{formatDuration(batch.start_ms)}–{formatDuration(batch.end_ms)}</Text>
       </View>
-      <Text style={styles.batchState}>{queued ? 'Not arrived yet' : dayStageLabel(batch.stage)}</Text>
+      <Text style={styles.batchState}>{selected ? 'Viewing snapshot' : queued ? 'Not arrived yet' : dayStageLabel(batch.stage)}</Text>
       <Text style={styles.batchSize}>{batch.size_bytes ? formatBytes(batch.size_bytes) : 'logical slice'}</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -313,12 +501,12 @@ function ChangeRow({ change, preview = false }: { change: DayChange; preview?: b
   );
 }
 
-function MemoryCard({ session }: { session: DaySession }) {
-  const items = useMemo(() => currentMemory(session.memory), [session.memory]);
+function MemoryCard({ memory, label }: { memory: DayMemory; label: string }) {
+  const items = useMemo(() => currentMemory(memory), [memory]);
   return (
     <Card style={styles.memoryCard}>
-      <Text style={styles.sectionKicker}>CURRENT DAY MEMORY</Text>
-      <Text style={styles.memorySummary}>{session.memory.summary}</Text>
+      <Text style={styles.sectionKicker}>{label.toUpperCase()}</Text>
+      <Text style={styles.memorySummary}>{memorySummary(memory)}</Text>
       {!items.length ? <Text style={styles.emptyCopy}>The canonical memory is empty until the first batch publishes.</Text> : (
         <View style={styles.memoryList}>{items.map((item) => <MemoryRow key={item.id} item={item} />)}</View>
       )}
@@ -358,10 +546,17 @@ const styles = StyleSheet.create({
   metricValue: { color: colors.ink, fontFamily: font.mono, fontSize: 16 },
   metricAccent: { color: colors.coralDark },
   progressCaption: { color: colors.inkMuted, fontSize: 10 },
+  snapshotSelector: { gap: spacing.md },
+  selectorHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: spacing.lg, flexWrap: 'wrap' },
+  selectorCopy: { flex: 1, minWidth: 260, gap: 3 },
+  selectorTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 18 },
+  selectorBody: { maxWidth: 720, color: colors.inkMuted, fontSize: 10, lineHeight: 15 },
+  liveLabel: { color: colors.green, fontFamily: font.mono, fontSize: 9, letterSpacing: 0.7 },
   batchRail: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   batchCard: { flex: 1, minWidth: 150, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, gap: 5 },
   batchCardActive: { borderColor: colors.coral, backgroundColor: colors.coralSoft },
   batchCardComplete: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  batchCardSelected: { borderWidth: 2, borderColor: colors.coral, backgroundColor: colors.coralSoft },
   batchTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
   batchNumber: { width: 26, height: 26, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   batchNumberComplete: { backgroundColor: colors.green },
@@ -369,6 +564,44 @@ const styles = StyleSheet.create({
   batchTime: { color: colors.inkMuted, fontFamily: font.mono, fontSize: 8 },
   batchState: { color: colors.ink, fontFamily: font.medium, fontSize: 10 },
   batchSize: { color: colors.inkFaint, fontSize: 8 },
+  explorer: { gap: spacing.lg, borderColor: colors.borderStrong },
+  explorerHeading: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: spacing.lg, flexWrap: 'wrap' },
+  snapshotStamp: { color: colors.blue, fontFamily: font.mono, fontSize: 9 },
+  snapshotTabs: { flexDirection: 'row', flexWrap: 'wrap', borderBottomWidth: 1, borderBottomColor: colors.border },
+  snapshotTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  snapshotTabActive: { borderBottomColor: colors.coral },
+  snapshotTabText: { color: colors.inkMuted, fontFamily: font.medium, fontSize: 11 },
+  snapshotTabTextActive: { color: colors.pine },
+  snapshotPane: { gap: spacing.xl },
+  snapshotSummary: { maxWidth: 820, color: colors.ink, fontFamily: font.medium, fontSize: 19, lineHeight: 28 },
+  snapshotStats: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  snapshotStat: { flex: 1, minWidth: 110, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.canvas, gap: 2 },
+  snapshotStatValue: { color: colors.pine, fontFamily: font.mono, fontSize: 19 },
+  snapshotStatLabel: { color: colors.inkMuted, fontSize: 9 },
+  overviewColumns: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: spacing.xl },
+  snapshotList: { flex: 1, minWidth: 260, gap: spacing.md },
+  snapshotListRoomy: { width: '100%', maxWidth: 820, flex: 0 },
+  snapshotListTitle: { color: colors.ink, fontFamily: font.medium, fontSize: 13 },
+  snapshotItem: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.canvas },
+  snapshotItemDot: { width: 9, height: 9, marginTop: 4, borderRadius: radius.pill, backgroundColor: colors.coral },
+  snapshotItemDotResolved: { backgroundColor: colors.green },
+  snapshotItemCopy: { flex: 1, minWidth: 0, gap: 3 },
+  snapshotItemMeta: { color: colors.inkFaint, fontFamily: font.mono, fontSize: 7, textTransform: 'uppercase' },
+  snapshotItemText: { color: colors.ink, fontSize: 11, lineHeight: 17 },
+  snapshotEvidence: { color: colors.blue, fontFamily: font.mono, fontSize: 7 },
+  mapPane: { alignItems: 'center' },
+  mapRoot: { width: '100%', maxWidth: 620, minHeight: 76, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.pine, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  mapRootCopy: { flex: 1, gap: 3 },
+  mapRootLabel: { color: colors.white, fontFamily: font.medium, fontSize: 14 },
+  mapRootSummary: { color: colors.pineSoft, fontSize: 9, lineHeight: 14 },
+  mapTrunk: { width: 2, height: spacing.xl, backgroundColor: colors.borderStrong },
+  mapBranches: { width: '100%', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'center', gap: spacing.md },
+  mapBranch: { flex: 1, minWidth: 210, maxWidth: 400, padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.canvas, gap: spacing.sm },
+  mapBranchTitle: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  mapBranchLabel: { color: colors.pine, fontFamily: font.medium, fontSize: 11 },
+  mapLeaf: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
+  mapLeafDot: { width: 7, height: 7, marginTop: 4, borderRadius: radius.pill, backgroundColor: colors.coral },
+  mapLeafText: { flex: 1, color: colors.ink, fontSize: 9, lineHeight: 14 },
   twoColumn: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.xl },
   oneColumn: { flexDirection: 'column' },
   primaryColumn: { flex: 1.35, width: '100%', minWidth: 0, gap: spacing.xl },

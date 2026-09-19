@@ -139,6 +139,7 @@ class DayAdvanceRequest(StrictModel):
 
 class DayAskRequest(StrictModel):
     question: str = Field(min_length=1, max_length=2_000)
+    batch_index: int | None = Field(default=None, ge=0)
 
 
 class DayResetRequest(StrictModel):

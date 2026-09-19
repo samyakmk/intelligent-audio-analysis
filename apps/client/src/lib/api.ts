@@ -252,10 +252,10 @@ export const api = {
       method: 'POST',
       body: { expected_revision: expectedRevision },
     }),
-  askDay: (recordingId: string, question: string) =>
+  askDay: (recordingId: string, question: string, batchIndex?: number) =>
     request<DayAskMessage>(`/v1/day-sessions/${encodeURIComponent(recordingId)}/ask`, {
       method: 'POST',
-      body: { question },
+      body: { question, batch_index: batchIndex },
     }),
   resetDay: (recordingId: string, expectedRevision: number) =>
     request<DaySession>(`/v1/day-sessions/${encodeURIComponent(recordingId)}/reset`, {

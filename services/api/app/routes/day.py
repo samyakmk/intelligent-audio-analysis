@@ -72,13 +72,17 @@ def ask_day(
         recording, session = get_day_session(db, recording_id, auth.workspace_id, lock=True)
     except LookupError as error:
         raise _not_found(error) from error
-    message = answer_day_question(
-        db,
-        recording,
-        session,
-        payload.question,
-        fixture_root=request.app.state.settings.fixture_root,
-    )
+    try:
+        message = answer_day_question(
+            db,
+            recording,
+            session,
+            payload.question,
+            through_batch_index=payload.batch_index,
+            fixture_root=request.app.state.settings.fixture_root,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     db.commit()
     return message
 
@@ -100,4 +104,3 @@ def reset_day(
     reset_day_session(db, recording, session)
     db.commit()
     return day_session_payload(db, recording, session, request.app.state.settings.fixture_root)
-

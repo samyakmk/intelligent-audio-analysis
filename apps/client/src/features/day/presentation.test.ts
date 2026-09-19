@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import type { DaySession } from '@/types/api';
 
-import { currentMemory, dayStageLabel, stageProgress, visibleBatch } from './presentation';
+import {
+  asksThroughWatermark,
+  changesThroughBatch,
+  currentMemory,
+  dayStageLabel,
+  memorySummary,
+  snapshotMemory,
+  snapshotWatermark,
+  stageProgress,
+  visibleBatch,
+} from './presentation';
 
 function session(overrides: Partial<DaySession> = {}): DaySession {
   return {
@@ -49,5 +59,29 @@ describe('continuous-day presentation', () => {
     ];
     expect(currentMemory(memory).map((item) => item.text)).toEqual(['Monday']);
     expect(dayStageLabel('reconciling')).toBe('Reconciling boundary');
+    expect(memorySummary(memory)).toBe('Monday');
+  });
+
+  it('projects memory, changes, and Ask history through a selected batch', () => {
+    const value = session();
+    value.batches[0]!.published_snapshot = {
+      summary: 'First snapshot',
+      decisions: [],
+      actions: [],
+      facts: [],
+      open_questions: [],
+    };
+    value.changes = [
+      { id: 'one', operation: 'add', kind: 'fact', key: 'one', after: 'One', batch_index: 0 },
+      { id: 'two', operation: 'add', kind: 'fact', key: 'two', after: 'Two', batch_index: 1 },
+    ];
+    value.ask_history = [
+      { id: 'early', question: 'Q', answer: 'A', citations: [], abstained: false, provisional: true, watermark_ms: 20_000, processed_batch_count: 1, strategy: 'fixture', created_at: '2026-01-01' },
+      { id: 'late', question: 'Q', answer: 'B', citations: [], abstained: false, provisional: true, watermark_ms: 40_000, processed_batch_count: 2, strategy: 'fixture', created_at: '2026-01-01' },
+    ];
+    expect(snapshotMemory(value, 0).summary).toBe('First snapshot');
+    expect(snapshotWatermark(value, 0)).toBe(20_000);
+    expect(changesThroughBatch(value, 0).map((change) => change.id)).toEqual(['one']);
+    expect(asksThroughWatermark(value, 20_000).map((message) => message.id)).toEqual(['early']);
   });
 });

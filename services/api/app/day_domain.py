@@ -349,12 +349,21 @@ def _apply_operations(
     return updated, changes
 
 
-def _all_published_segments(db: Session, session: DaySession) -> list[dict[str, Any]]:
-    batches = db.scalars(
-        select(DayBatch)
-        .where(DayBatch.day_session_id == session.id, DayBatch.status == "complete")
-        .order_by(DayBatch.batch_index)
-    ).all()
+def _published_batches(
+    db: Session, session: DaySession, through_batch_index: int | None = None
+) -> list[DayBatch]:
+    statement = select(DayBatch).where(
+        DayBatch.day_session_id == session.id, DayBatch.status == "complete"
+    )
+    if through_batch_index is not None:
+        statement = statement.where(DayBatch.batch_index <= through_batch_index)
+    return list(db.scalars(statement.order_by(DayBatch.batch_index)).all())
+
+
+def _all_published_segments(
+    db: Session, session: DaySession, through_batch_index: int | None = None
+) -> list[dict[str, Any]]:
+    batches = _published_batches(db, session, through_batch_index)
     return [segment for batch in batches for segment in (batch.transcript or [])]
 
 
@@ -668,15 +677,25 @@ def answer_day_question(
     session: DaySession,
     question: str,
     *,
+    through_batch_index: int | None = None,
     fixture_root: Any,
 ) -> dict[str, Any]:
     fixture = _fixture_for_session(session, fixture_root)
-    processed_segments = _all_published_segments(db, session)
+    selected_batches = _published_batches(db, session, through_batch_index)
+    if through_batch_index is not None and (
+        not selected_batches or selected_batches[-1].batch_index != through_batch_index
+    ):
+        raise ValueError("That batch does not have a published snapshot yet")
+    processed_segments = [
+        segment for batch in selected_batches for segment in (batch.transcript or [])
+    ]
     segment_index = {item["id"]: item for item in processed_segments}
+    watermark_ms = selected_batches[-1].end_ms if selected_batches else 0
+    processed_batch_count = len(selected_batches)
     normalized_terms = set(re.findall(r"[a-z0-9]+", question.casefold()))
     answer = ""
     citations: list[dict[str, Any]] = []
-    provisional = session.status != "complete"
+    provisional = watermark_ms < (recording.duration_ms or watermark_ms)
     strategy = "lexical_evidence"
     if fixture:
         scored_answers = []
@@ -740,7 +759,7 @@ def answer_day_question(
     if abstained:
         answer = (
             "I do not have enough evidence in the batches processed so far. "
-            f"Ask-ready content currently ends at {session.watermark_ms // 1000} seconds."
+            f"Ask-ready content currently ends at {watermark_ms // 1000} seconds."
         )
         strategy = "abstained_before_watermark"
     message = {
@@ -750,8 +769,9 @@ def answer_day_question(
         "citations": citations,
         "abstained": abstained,
         "provisional": provisional,
-        "watermark_ms": session.watermark_ms,
-        "processed_batch_count": session.processed_batch_count,
+        "watermark_ms": watermark_ms,
+        "processed_batch_count": processed_batch_count,
+        "batch_index": through_batch_index,
         "strategy": strategy,
         "created_at": utcnow(),
     }

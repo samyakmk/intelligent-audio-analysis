@@ -36,6 +36,37 @@ export function currentMemory(memory: DayMemory): DayMemoryItem[] {
     .filter((item) => item.status !== 'superseded');
 }
 
+export function memorySummary(memory: DayMemory): string {
+  if (memory.summary && memory.summary !== 'No batches have been published yet.') {
+    return memory.summary;
+  }
+  const items = currentMemory(memory).slice(0, 2);
+  if (!items.length) return memory.summary || 'No memory has been published yet.';
+  return items.map((item) => item.text).join(' ');
+}
+
+export function snapshotMemory(session: DaySession, batchIndex: number | null): DayMemory {
+  if (batchIndex === null) return session.memory;
+  const batch = session.batches.find((candidate) => candidate.index === batchIndex);
+  if (batch?.status !== 'complete' || !batch.published_snapshot.summary) return session.memory;
+  return batch.published_snapshot as DayMemory;
+}
+
+export function snapshotWatermark(session: DaySession, batchIndex: number | null): number {
+  if (batchIndex === null) return session.watermark_ms;
+  return session.batches.find((batch) => batch.index === batchIndex)?.end_ms ?? session.watermark_ms;
+}
+
+export function changesThroughBatch(session: DaySession, batchIndex: number | null) {
+  return batchIndex === null
+    ? session.changes
+    : session.changes.filter((change) => change.batch_index <= batchIndex);
+}
+
+export function asksThroughWatermark(session: DaySession, watermarkMs: number) {
+  return session.ask_history.filter((message) => message.watermark_ms <= watermarkMs);
+}
+
 export function revisionVerb(operation: string): string {
   if (operation === 'supersede') return 'REVISED';
   if (operation === 'resolve') return 'RESOLVED';

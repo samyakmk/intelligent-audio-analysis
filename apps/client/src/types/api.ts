@@ -197,6 +197,7 @@ export interface DayAskMessage {
   provisional: boolean;
   watermark_ms: number;
   processed_batch_count: number;
+  batch_index?: number | null;
   strategy: string;
   created_at: IsoDate;
 }
