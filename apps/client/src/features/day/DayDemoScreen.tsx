@@ -172,7 +172,7 @@ export default function DayDemoScreen() {
           <View style={styles.selectorCopy}>
             <Text style={styles.sectionKicker}>TIME-TRAVEL SNAPSHOTS</Text>
             <Text style={styles.selectorTitle}>Choose a published batch</Text>
-            <Text style={styles.selectorBody}>Everything below—overview, decisions, to-dos, map, history, memory, and Ask—rewinds to that publish point.</Text>
+            <Text style={styles.selectorBody}>Everything below, including the overview, decisions, to-dos, map, history, memory, and Ask, rewinds to that publish point.</Text>
           </View>
           {historical ? <Button size="sm" icon="update" onPress={() => setSelectedBatchIndex(null)}>Follow latest</Button> : <Text style={styles.liveLabel}>● LIVE</Text>}
         </View>

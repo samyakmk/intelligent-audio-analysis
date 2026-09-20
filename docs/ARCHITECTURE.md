@@ -134,7 +134,7 @@ If triage is unavailable or over budget, the batch fails open by keeping every s
 filtering can reduce cost but cannot become a prerequisite for preserving evidence.
 
 Ask is deliberately separate from recurring memory synthesis. It retrieves across the full
-published transcript—including triage-dropped segments when they match the question—then
+published transcript, including triage-dropped segments when they match the question, then
 backfills with recent triage-kept evidence and sends at most a bounded evidence set to Gemini.
 Both retrieval and model context stop at the selected batch watermark, so historical questions
 cannot see later audio.

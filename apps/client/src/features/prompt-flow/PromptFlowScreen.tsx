@@ -161,7 +161,7 @@ export default function PromptFlowScreen() {
           <PipelineNode icon="source-merge" title="Merge + validate in code" detail="Resolve, deduplicate, and flag contradictions" tone="code" compact={phone} />
           <Connector compact={phone} />
           <View style={styles.routedFinish}>
-            <PipelineNode icon="text-box-check-outline" title="Compact synthesis" detail="Write from merged facts—not the transcript" tone="cheap" compact={phone} />
+            <PipelineNode icon="text-box-check-outline" title="Compact synthesis" detail="Write from merged facts, not the transcript" tone="cheap" compact={phone} />
             <View style={[styles.repairBranch, phone && styles.repairBranchCompact]}>
               <MaterialCommunityIcons name="arrow-up-right" size={16} color={colors.coralDark} />
               <Text style={styles.repairText}>Strong repair sees only the failed unit</Text>
@@ -174,7 +174,7 @@ export default function PromptFlowScreen() {
         <View style={styles.takeawayIcon}><MaterialCommunityIcons name="lightning-bolt-outline" size={24} color={colors.white} /></View>
         <View style={styles.takeawayCopy}>
           <Text style={styles.takeawayKicker}>THE KEY DIFFERENCE</Text>
-          <Text style={styles.takeawayTitle}>Sophistication comes from routing and verification—not from making the first prompt bigger.</Text>
+          <Text style={styles.takeawayTitle}>Sophistication comes from routing and verification, not from making the first prompt bigger.</Text>
           <Text style={styles.takeawayBody}>The optimized pipeline pays for broad context once, keeps deterministic work in code, and buys stronger reasoning only for the small fraction of output that fails validation.</Text>
         </View>
       </Card>
@@ -190,7 +190,7 @@ function ContinuousDayFlow({ phone }: { phone: boolean }) {
     { icon: 'text-box-outline', title: 'Gemini transcription', detail: 'The arriving batch becomes a full timestamped transcript; raw text is retained.', tone: 'cheap', side: 'one metered call for this batch only' },
     { icon: 'filter-variant', title: 'High-recall Gemini triage', detail: 'Keep decisions, tasks, corrections, risks, metrics, questions, and uncertain context.', tone: 'cheap', side: 'drop only obvious filler or unrelated chatter' },
     { icon: 'vector-link', title: 'Reconcile with prior tail', detail: 'Carry speaker and boundary context; retain exact source IDs and timestamps.', tone: 'code', side: 'future batches may revise, never rewrite evidence' },
-    { icon: 'source-merge', title: 'Cumulative memory synthesis', detail: 'Send previously kept evidence plus this batch’s kept segments—not the whole day.', tone: 'strong', side: 'add, supersede, and resolve temporal facts' },
+    { icon: 'source-merge', title: 'Cumulative memory synthesis', detail: 'Send previously kept evidence plus this batch’s kept segments, not the whole day.', tone: 'strong', side: 'add, supersede, and resolve temporal facts' },
     { icon: 'database-check-outline', title: 'Atomic snapshot publish', detail: 'Transcript, index, memory, revision log, and Ask watermark become visible together.', tone: 'output', side: 'historical batch snapshots remain selectable' },
   ];
   return (
@@ -223,7 +223,7 @@ function ContinuousDayFlow({ phone }: { phone: boolean }) {
 
       <Card style={styles.askArchitecture}>
         <View style={styles.askArchitectureIcon}><MaterialCommunityIcons name="message-question-outline" size={24} color={colors.white} /></View>
-        <View style={styles.takeawayCopy}><Text style={styles.takeawayKicker}>ASK IS A SEPARATE RETRIEVAL PATH</Text><Text style={styles.takeawayTitle}>Memory stays compact; questions can still reach the full retained transcript.</Text><Text style={styles.takeawayBody}>Ask ranks matching text across every published segment—including content excluded from recurring synthesis—then adds recent high-salience evidence and sends a bounded, cited context to Gemini.</Text></View>
+        <View style={styles.takeawayCopy}><Text style={styles.takeawayKicker}>ASK IS A SEPARATE RETRIEVAL PATH</Text><Text style={styles.takeawayTitle}>Memory stays compact; questions can still reach the full retained transcript.</Text><Text style={styles.takeawayBody}>Ask ranks matching text across every published segment, including content excluded from recurring synthesis, then adds recent high-salience evidence and sends a bounded, cited context to Gemini.</Text></View>
       </Card>
     </View>
   );
